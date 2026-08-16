@@ -46,9 +46,9 @@ Chain strategy: pending
 
 ## Phase 2: Catalog (PR2)
 
-- [ ] 2.1 `tests/test_catalog.py`: part-type create/patch/deactivate (inactive blocked for new inspections); image validation → `routers/catalog.py`, `services/catalog.py`
-- [ ] 2.2 characteristics: dual-format checks, unique code, edit, delete
-- [ ] 2.3 balloons: unique number per type, one per characteristic, x/y 0..1; inspector mutations 403
+- [x] 2.1 `tests/test_catalog.py`: part-type create/patch/deactivate (inactive blocked for new inspections); image validation → `routers/catalog.py`, `services/catalog.py`
+- [x] 2.2 characteristics: dual-format checks, unique code, edit, delete
+- [x] 2.3 balloons: unique number per type, one per characteristic, x/y 0..1; inspector mutations 403
 
 ## Phase 3: Inspection Execution (PR3)
 
