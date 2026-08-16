@@ -5,11 +5,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db, require_role
-from app.models import PartType, User
-from app.schemas import PartTypeIn, PartTypeOut, PartTypePatchIn
-from app.services.catalog import images_dir, save_image
+from app.models import Characteristic, PartType, User
+from app.schemas import (
+    CharacteristicIn, CharacteristicOut, CharacteristicPatchIn, PartTypeIn,
+    PartTypeOut, PartTypePatchIn,
+)
+from app.services.catalog import images_dir, save_image, validate_characteristic
 
 router = APIRouter(prefix="/api/part-types", tags=["catalog"])
+characteristics_router = APIRouter(prefix="/api/characteristics", tags=["catalog"])
 
 
 @router.get("", response_model=list[PartTypeOut])
@@ -75,3 +79,67 @@ def get_image(part_type_id: int, db: Session = Depends(get_db),
     if part_type is None or part_type.image_path is None:
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(images_dir() / part_type.image_path)
+
+
+@router.get("/{part_type_id}/characteristics", response_model=list[CharacteristicOut])
+def list_characteristics(part_type_id: int, db: Session = Depends(get_db),
+                         _: User = Depends(get_current_user)):
+    return db.scalars(select(Characteristic).where(Characteristic.part_type_id == part_type_id)
+                      .order_by(Characteristic.sort_order, Characteristic.id)).all()
+
+
+@router.post("/{part_type_id}/characteristics",
+             response_model=CharacteristicOut, status_code=201)
+def create_characteristic(part_type_id: int, payload: CharacteristicIn,
+                          db: Session = Depends(get_db),
+                          _: User = Depends(require_role("admin"))):
+    if db.get(PartType, part_type_id) is None:
+        raise HTTPException(status_code=404, detail="Part type not found")
+    try:
+        validate_characteristic(payload.tol_type, payload.nominal, payload.tol_plus,
+                                payload.min_limit, payload.max_limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if db.scalar(select(Characteristic).where(
+            Characteristic.part_type_id == part_type_id,
+            Characteristic.code == payload.code)):
+        raise HTTPException(status_code=409, detail="Characteristic code already exists")
+    characteristic = Characteristic(part_type_id=part_type_id, **payload.model_dump())
+    db.add(characteristic)
+    db.commit()
+    db.refresh(characteristic)
+    return characteristic
+
+
+@characteristics_router.patch("/{characteristic_id}", response_model=CharacteristicOut)
+def patch_characteristic(characteristic_id: int, payload: CharacteristicPatchIn,
+                         db: Session = Depends(get_db),
+                         _: User = Depends(require_role("admin"))):
+    characteristic = db.get(Characteristic, characteristic_id)
+    if characteristic is None:
+        raise HTTPException(status_code=404, detail="Characteristic not found")
+    updates = payload.model_dump(exclude_unset=True)
+    try:
+        validate_characteristic(
+            updates.get("tol_type", characteristic.tol_type),
+            updates.get("nominal", characteristic.nominal),
+            updates.get("tol_plus", characteristic.tol_plus),
+            updates.get("min_limit", characteristic.min_limit),
+            updates.get("max_limit", characteristic.max_limit))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    for field, value in updates.items():
+        setattr(characteristic, field, value)
+    db.commit()
+    db.refresh(characteristic)
+    return characteristic
+
+
+@characteristics_router.delete("/{characteristic_id}", status_code=204)
+def delete_characteristic(characteristic_id: int, db: Session = Depends(get_db),
+                          _: User = Depends(require_role("admin"))):
+    characteristic = db.get(Characteristic, characteristic_id)
+    if characteristic is None:
+        raise HTTPException(status_code=404, detail="Characteristic not found")
+    db.delete(characteristic)
+    db.commit()
