@@ -39,10 +39,10 @@ Chain strategy: pending
 
 ## Phase 1: Models & Auth (PR1)
 
-- [ ] 1.1 `backend/tests/test_rules.py`: `evaluate` (symmetric/limits/unilateral/edges) + `worst_of` matrix → `services/tolerance.py`, `services/status.py`
-- [ ] 1.2 `app/{main,db,deps}.py`, `models.py`, `schemas.py`: all tables + constraints; schema test
-- [ ] 1.3 `tests/test_auth.py`: login/logout/me; Argon2; inactive denied; HttpOnly cookie; env admin seed → `routers/auth.py`, `services/auth.py`
-- [ ] 1.4 `tests/test_users.py`: create/deactivate/reset; dup username 409; deactivated session invalid; inspector 403 → `routers/users.py`
+- [x] 1.1 `backend/tests/test_rules.py`: `evaluate` (symmetric/limits/unilateral/edges) + `worst_of` matrix → `services/tolerance.py`, `services/status.py`
+- [x] 1.2 `app/{main,db,deps}.py`, `models.py`, `schemas.py`: all tables + constraints; schema test
+- [x] 1.3 `tests/test_auth.py`: login/logout/me; Argon2; inactive denied; HttpOnly cookie; env admin seed → `routers/auth.py`, `services/auth.py`
+- [x] 1.4 `tests/test_users.py`: create/deactivate/reset; dup username 409; deactivated session invalid; inspector 403 → `routers/users.py`
 
 ## Phase 2: Catalog (PR2)
 
