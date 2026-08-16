@@ -20,3 +20,15 @@ def save_image(content_type: str, part_type_id: int, data: bytes) -> str:
     name = f"{part_type_id}{ext}"
     (root / name).write_bytes(data)
     return name
+
+
+def validate_characteristic(tol_type, nominal, tol_plus, min_limit, max_limit) -> None:
+    """Dual-format rule (design Data Model): raise ValueError on invalid combos."""
+    if tol_type == "SYMMETRIC":
+        if nominal is None or tol_plus is None:
+            raise ValueError("SYMMETRIC requires nominal and tol_plus")
+    else:
+        if min_limit is None and max_limit is None:
+            raise ValueError("LIMITS requires at least one limit")
+        if min_limit is not None and max_limit is not None and min_limit > max_limit:
+            raise ValueError("min_limit must not exceed max_limit")
