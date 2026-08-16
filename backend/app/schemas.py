@@ -23,3 +23,18 @@ class UserCreateIn(BaseModel):
 class UserPatchIn(BaseModel):
     active: bool | None = None
     password: str | None = Field(default=None, min_length=8)
+
+
+class PartTypeIn(BaseModel):
+    code: str = Field(min_length=1, max_length=40)
+
+
+class PartTypePatchIn(BaseModel):
+    active: bool | None = None
+
+
+class PartTypeOut(BaseModel):
+    id: int
+    code: str
+    image_path: str | None
+    active: bool
