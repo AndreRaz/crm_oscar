@@ -75,3 +75,21 @@ class CharacteristicOut(BaseModel):
     min_limit: float | None
     max_limit: float | None
     sort_order: int
+
+
+class BalloonIn(BaseModel):
+    number: int = Field(ge=1)
+    characteristic_id: int
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class BalloonOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    part_type_id: int
+    number: int
+    characteristic_id: int
+    x: float
+    y: float

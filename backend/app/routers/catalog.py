@@ -5,15 +5,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db, require_role
-from app.models import Characteristic, PartType, User
+from app.models import Balloon, Characteristic, PartType, User
 from app.schemas import (
-    CharacteristicIn, CharacteristicOut, CharacteristicPatchIn, PartTypeIn,
-    PartTypeOut, PartTypePatchIn,
+    BalloonIn, BalloonOut, CharacteristicIn, CharacteristicOut, CharacteristicPatchIn,
+    PartTypeIn, PartTypeOut, PartTypePatchIn,
 )
 from app.services.catalog import images_dir, save_image, validate_characteristic
 
 router = APIRouter(prefix="/api/part-types", tags=["catalog"])
 characteristics_router = APIRouter(prefix="/api/characteristics", tags=["catalog"])
+balloons_router = APIRouter(prefix="/api/balloons", tags=["catalog"])
 
 
 @router.get("", response_model=list[PartTypeOut])
@@ -142,4 +143,40 @@ def delete_characteristic(characteristic_id: int, db: Session = Depends(get_db),
     if characteristic is None:
         raise HTTPException(status_code=404, detail="Characteristic not found")
     db.delete(characteristic)
+    db.commit()
+
+
+@router.get("/{part_type_id}/balloons", response_model=list[BalloonOut])
+def list_balloons(part_type_id: int, db: Session = Depends(get_db),
+                  _: User = Depends(get_current_user)):
+    return db.scalars(select(Balloon).where(Balloon.part_type_id == part_type_id)
+                      .order_by(Balloon.number)).all()
+
+
+@router.post("/{part_type_id}/balloons", response_model=BalloonOut, status_code=201)
+def create_balloon(part_type_id: int, payload: BalloonIn, db: Session = Depends(get_db),
+                   _: User = Depends(require_role("admin"))):
+    characteristic = db.get(Characteristic, payload.characteristic_id)
+    if characteristic is None or characteristic.part_type_id != part_type_id:
+        raise HTTPException(status_code=404, detail="Characteristic not found")
+    if db.scalar(select(Balloon).where(Balloon.part_type_id == part_type_id,
+                                       Balloon.number == payload.number)):
+        raise HTTPException(status_code=409, detail="Balloon number already used")
+    if db.scalar(select(Balloon).where(
+            Balloon.characteristic_id == payload.characteristic_id)):
+        raise HTTPException(status_code=409, detail="Characteristic already has a balloon")
+    balloon = Balloon(part_type_id=part_type_id, **payload.model_dump())
+    db.add(balloon)
+    db.commit()
+    db.refresh(balloon)
+    return balloon
+
+
+@balloons_router.delete("/{balloon_id}", status_code=204)
+def delete_balloon(balloon_id: int, db: Session = Depends(get_db),
+                   _: User = Depends(require_role("admin"))):
+    balloon = db.get(Balloon, balloon_id)
+    if balloon is None:
+        raise HTTPException(status_code=404, detail="Balloon not found")
+    db.delete(balloon)
     db.commit()
