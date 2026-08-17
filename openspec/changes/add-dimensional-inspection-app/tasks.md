@@ -74,8 +74,8 @@ Chain strategy: pending
 
 ## Phase 7: Frontend Shell (PR7)
 
-- [ ] 7.1 Vite scaffold + `src/api/client.js` (cookie credentials) + Login + role tabs, Spanish copy; RTL mocks client
-- [ ] 7.2 Users page (admin) + read-only catalog (inspector); RTL
+- [x] 7.1 Vite scaffold + `src/api/client.js` (cookie credentials) + Login + role tabs, Spanish copy; RTL mocks client
+- [x] 7.2 Users page (admin) + read-only catalog (inspector); RTL
 
 ## Phase 8: Frontend Features (PR8)
 
