@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8a merged; PR8b is `feat/frontend-inspection` off updated main.
+Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8b merged; PR8c is `feat/frontend-deviations` off updated main.
 
 ## Tasks (cumulative)
 
@@ -25,7 +25,8 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8a merged; PR8b is `
 - [x] 7.2 admin user management and inspector read-only catalog with characteristic details
 - [x] 8.1 admin catalog forms, image upload, dual-format characteristics, normalized linked balloons, and inspector read-only view
 - [x] 8.2 inspector workspace: active part/serial/characteristic selection, 3-pane guided capture, active balloon, server measurement/final statuses, numeric feedback, and navigation
-- [ ] Tasks 8.3–8.4 and Phase 9 pending
+- [x] 8.3 admin deviation queue grouped by inspection, mandatory disposition/annulment text, server status refresh, and authorized PDF downloads for admins and owning inspectors
+- [ ] Task 8.4 and Phase 9 pending
 
 ## TDD Cycle Evidence
 
@@ -52,6 +53,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8a merged; PR8b is `
 | 7.2 | `src/App.test.tsx` | RTL integration | N/A (new) | ✅ missing `App` | ✅ 3 component flows passed | ✅ create/deactivate/reset + read-only non-empty catalog | ✅ accessible action labels; 3/3 green |
 | 8.1 | `src/App.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 5/5 prior green | ✅ 3 failed, 4 passed (catalog APIs/forms/balloons absent) | ✅ 7 passed | ✅ symmetric + unilateral LIMITS, multipart upload, normalized balloon, inspector read-only | ✅ keyed tolerance fields prevent stale values across format changes; 7/7 green |
 | 8.2 | `src/Inspection.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 7/7 prior green | ✅ 2 suites failed (missing `Inspection` and inspection client) | ✅ 6 focused passed | ✅ IN_TOLERANCE/PENDING, two tolerance formats, navigation, invalid input, server-derived completion | ✅ focused 6/6 and full 10/10 green |
+| 8.3 | `src/Deviations.test.tsx`, `src/Inspection.test.tsx`, `src/App.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 10/10 prior green | ✅ 3 files failed: missing queue/client/report behavior | ✅ 10 focused passed | ✅ accept/reject, blank text, annulment, admin/inspector access, PDF response, server status refresh | ✅ shared report downloader; focused/full 14/14 and build green |
 
 ## Work Unit Evidence
 
@@ -66,6 +68,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8a merged; PR8b is `
 | PR7 | `npm run test -- --run` in `frontend/` | **5 passed** across 2 files | `npm run dev -- --host 127.0.0.1`; Vite ready in 143 ms and `GET /` returned 530 bytes | revert `e9f02db` plus the PR7 progress-doc commit; removes `frontend/` and its three root ignore entries only |
 | PR8a | `npm run test -- --run src/App.test.tsx src/api/client.test.ts` in `frontend/` | **7 passed** across 2 files; `npm run build` passed | `npm run dev -- --host 127.0.0.1`; `GET /` returned **200** and 332 bytes | revert `2d95e28` plus the PR8a progress-doc commit; removes catalog management UI/client methods/tests/styles only |
 | PR8b | `npm run test -- --run src/Inspection.test.tsx src/api/client.test.ts` in `frontend/` | **6 passed** across 2 files; full frontend **10 passed**; `npm run build` passed | `npm run dev -- --host 127.0.0.1`; `GET /` returned **200** and 348 bytes | revert `20d9791` plus the PR8b progress-doc commit; removes inspection workspace/client methods/tests/styles only |
+| PR8c | `npm run test -- --run src/Deviations.test.tsx src/Inspection.test.tsx src/App.test.tsx src/api/client.test.ts` in `frontend/` | **14 passed** across 4 files; `npm run build` passed | `npm run dev -- --host 127.0.0.1 --port 4175`; `GET /` returned **200** and 530 bytes; RTL covers queue→dispose/annul→refresh/download | revert `0e68011` plus the PR8c progress-doc commit; removes deviation workspace, shared report downloader, API methods, tests, and styles only |
 
 ## Commits
 
@@ -116,6 +119,10 @@ PR8b (`feat/frontend-inspection`, off updated main):
 - `20d9791 feat(frontend): add guided inspection workspace`
 - docs commit: `docs(frontend): record task 8.2 apply progress`
 
+PR8c (`feat/frontend-deviations`, off updated main):
+- `0e68011 feat(frontend): add deviation disposition workspace`
+- docs commit: `docs(frontend): record task 8.3 apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
@@ -149,4 +156,4 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 
 ## Next steps
 
-- Next autonomous frontend slice: task 8.3 deviation and report workspace.
+- Next autonomous frontend slice: task 8.4 stability chart and table.
