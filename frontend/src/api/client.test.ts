@@ -41,4 +41,24 @@ describe("API client", () => {
     await api.inspections.complete(20);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/complete", expect.objectContaining({ method: "POST" }));
   });
+
+  it("uses deviation, annulment, detail, and authorized PDF contracts", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ groups: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 30, status: "REJECTED" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 20, status: "REJECTED" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 20, annulled_at: "now" })))
+      .mockResolvedValueOnce(new Response(new Blob(["pdf"], { type: "application/pdf" })));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.deviations.list();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations", expect.objectContaining({ credentials: "include" }));
+    await api.deviations.dispose(30, { action: "reject", text: "Fuera de límite" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/measurements/30/disposition", expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "reject", text: "Fuera de límite" }) }));
+    await api.inspections.detail(20);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20", expect.any(Object));
+    await api.inspections.annul(20, "Serie incorrecta");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/annul", expect.objectContaining({ method: "POST", body: JSON.stringify({ reason: "Serie incorrecta" }) }));
+    await expect(api.inspections.report(20)).resolves.toBeInstanceOf(Blob);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/report.pdf", expect.objectContaining({ credentials: "include" }));
+  });
 });
