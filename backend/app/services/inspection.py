@@ -3,9 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Characteristic, Inspection, Measurement, PartType, Piece, User,
+    Characteristic, Inspection, Measurement, PartType, Piece, User, utcnow,
 )
-from app.services.status import InspectionStatus
+from app.services.status import InspectionStatus, worst_of
 from app.services.tolerance import evaluate
 
 
@@ -78,3 +78,15 @@ def record_measurement(db: Session, inspection: Inspection,
     db.commit()
     db.refresh(measurement)
     return measurement
+
+
+def complete_inspection(db: Session, inspection: Inspection) -> Inspection:
+    if inspection.completed_at is not None:
+        raise InspectionError(409, "Inspection already completed")
+    statuses = db.scalars(select(Measurement.status).where(
+        Measurement.inspection_id == inspection.id)).all()
+    inspection.status = worst_of(statuses)
+    inspection.completed_at = utcnow()
+    db.commit()
+    db.refresh(inspection)
+    return inspection

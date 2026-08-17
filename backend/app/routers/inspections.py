@@ -61,3 +61,14 @@ def add_measurement(inspection_id: int, payload: MeasurementIn,
                                           payload.characteristic_id, payload.actual_value)
     except service.InspectionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post("/{inspection_id}/complete", response_model=InspectionOut)
+def complete(inspection_id: int, db: Session = Depends(get_db),
+             _: User = Depends(get_current_user)):
+    inspection = get_inspection_or_404(db, inspection_id)
+    try:
+        service.complete_inspection(db, inspection)
+    except service.InspectionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return inspection_out(db, inspection)

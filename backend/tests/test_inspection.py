@@ -190,3 +190,49 @@ class TestRecord:
         inspector_client(client, db)
         assert record(client, inspection_id=99).status_code == 404
 
+
+class TestComplete:
+    def test_all_in_tolerance_completes_conforming(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        inspector_client(client, db)
+        start_default(client)
+        record(client, characteristic_id=1, actual=10.0)
+        record(client, characteristic_id=2, actual=9.95)
+        response = client.post("/api/inspections/1/complete")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "CONFORMING"
+        assert body["completed_at"] is not None
+        assert client.get("/api/inspections/1").json()["status"] == "CONFORMING"
+
+    def test_out_of_range_measurement_completes_pending(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        inspector_client(client, db)
+        start_default(client)
+        record(client, characteristic_id=1, actual=10.0)
+        record(client, characteristic_id=2, actual=10.5)
+        body = client.post("/api/inspections/1/complete").json()
+        assert body["status"] == "PENDING"
+
+    def test_complete_locks_inspection_against_edits(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        inspector_client(client, db)
+        start_default(client)
+        record(client, characteristic_id=1, actual=10.0)
+        client.post("/api/inspections/1/complete")
+        assert record(client, characteristic_id=2, actual=10.0).status_code == 409
+        assert client.post("/api/inspections/1/complete").status_code == 409
+
+    def test_complete_401_and_404(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        assert client.post("/api/inspections/1/complete").status_code == 401
+        inspector_client(client, db)
+        assert client.post("/api/inspections/99/complete").status_code == 404
