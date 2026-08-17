@@ -2,6 +2,7 @@
 from jinja2 import Environment, PackageLoader, select_autoescape
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from weasyprint import HTML
 
 from app.models import Characteristic, Inspection, Measurement, PartType, Piece, User
 from app.services.catalog import images_dir
@@ -60,3 +61,13 @@ def render_report_html(db: Session, inspection: Inspection) -> str:
         measurements=measurements,
         disposition_notes=[row for row in measurements if row["note"]],
     )
+
+
+def render_report_pdf(db: Session, inspection: Inspection) -> bytes:
+    """Generate PDF bytes in memory; no report artifact is persisted."""
+    html = render_report_html(db, inspection)
+    return HTML(string=html, base_url=str(images_dir())).write_pdf()
+
+
+def may_download_report(user: User, inspection: Inspection) -> bool:
+    return user.role == "admin" or inspection.inspector_id == user.id
