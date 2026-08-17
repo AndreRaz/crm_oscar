@@ -15,7 +15,7 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
         })
         assert response.status_code == 201
 
-    part_type = client.post("/api/part-types", json={"code": "VALVE-001"})
+    part_type = client.post("/api/part-types", json={"code": "VALVE-001", "name": "Valve", "description": "Test"})
     assert part_type.status_code == 201
     part_type_id = part_type.json()["id"]
     characteristic = client.post(

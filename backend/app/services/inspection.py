@@ -1,4 +1,5 @@
 """Inspection execution service: start, record, complete (design ADR-4/5/8)."""
+from math import isfinite
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,7 +36,7 @@ def start_inspection(db: Session, part_type_id: int, serial: str,
     if len(set(characteristic_ids)) != len(characteristic_ids):
         raise InspectionError(422, "Duplicate characteristic in selection")
     selected = {c.id: c for c in db.scalars(
-        select(Characteristic).where(Characteristic.id.in_(characteristic_ids)))}
+        select(Characteristic).where(Characteristic.id.in_(characteristic_ids), Characteristic.active.is_(True)))}
     for cid in characteristic_ids:
         c = selected.get(cid)
         if c is None or c.part_type_id != part_type_id:
@@ -48,6 +49,7 @@ def start_inspection(db: Session, part_type_id: int, serial: str,
     db.add(piece)
     db.flush()
     inspection = Inspection(piece_id=piece.id, inspector_id=user.id,
+                             selected_characteristic_ids=",".join(map(str, characteristic_ids)),
                              status=InspectionStatus.PENDING)
     db.add(inspection)
     db.commit()
@@ -57,8 +59,12 @@ def start_inspection(db: Session, part_type_id: int, serial: str,
 
 def record_measurement(db: Session, inspection: Inspection,
                        characteristic_id: int, actual: float) -> Measurement:
+    if not isfinite(actual):
+        raise InspectionError(422, "Measurement must be finite")
     if inspection.completed_at is not None:
         raise InspectionError(409, "Inspection is locked")
+    if characteristic_id not in map(int, inspection.selected_characteristic_ids.split(",")):
+        raise InspectionError(422, "Characteristic was not selected for this inspection")
     piece = db.get(Piece, inspection.piece_id)
     c = db.get(Characteristic, characteristic_id)
     if c is None or c.part_type_id != piece.part_type_id:

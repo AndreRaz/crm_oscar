@@ -11,7 +11,7 @@ from tests.test_inspection import (
 
 
 def setup_catalog(client):
-    client.post("/api/part-types", json={"code": "BRK-001"})
+    client.post("/api/part-types", json={"code": "BRK-001", "name": "Bracket", "description": "Test"})
     client.post("/api/part-types/1/characteristics", json={
         "code": "A1", "name": "Diameter", "unit": "mm",
         "tol_type": "SYMMETRIC", "nominal": 10.0, "tol_plus": 0.1,
@@ -106,7 +106,7 @@ class TestStabilityGuards:
     def test_characteristic_from_another_part_type_is_rejected(self, db, client):
         admin_client(client, db)
         setup_catalog(client)
-        client.post("/api/part-types", json={"code": "BRK-002"})
+        client.post("/api/part-types", json={"code": "BRK-002", "name": "Bracket", "description": "Test"})
         foreign = client.post("/api/part-types/2/characteristics", json={
             "code": "B1", "tol_type": "SYMMETRIC",
             "nominal": 5.0, "tol_plus": 0.2,

@@ -21,8 +21,8 @@ describe("API client", () => {
   it("uses typed catalog JSON endpoints and preserves multipart image headers", async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 7, code: "PT-100", image_path: null, active: true }))));
     vi.stubGlobal("fetch", fetchMock);
-    await api.catalog.createPart({ code: "PT-100" });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types", expect.objectContaining({ method: "POST", body: JSON.stringify({ code: "PT-100" }) }));
+    await api.catalog.createPart({ code: "PT-100", name: "Pump", description: "Body" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types", expect.objectContaining({ method: "POST", body: JSON.stringify({ code: "PT-100", name: "Pump", description: "Body" }) }));
     const file = new File(["image"], "pieza.png", { type: "image/png" });
     await api.catalog.uploadImage(7, file);
     const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;

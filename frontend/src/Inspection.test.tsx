@@ -5,7 +5,7 @@ import Inspection from "./Inspection";
 
 const api = vi.hoisted(() => ({
   catalog: { list: vi.fn(), characteristics: vi.fn(), balloons: vi.fn(), imageUrl: vi.fn((id) => `/api/part-types/${id}/image`) },
-  inspections: { start: vi.fn(), record: vi.fn(), complete: vi.fn(), report: vi.fn() },
+  inspections: { list: vi.fn(), start: vi.fn(), record: vi.fn(), complete: vi.fn(), report: vi.fn() },
 }));
 vi.mock("./api/client", () => ({ api }));
 
@@ -25,6 +25,7 @@ beforeEach(() => {
     { id: 2, part_type_id: 7, number: 5, characteristic_id: 9, x: .7, y: .8 },
   ]);
   api.inspections.start.mockResolvedValue(inspection);
+  api.inspections.list.mockResolvedValue([]);
   api.inspections.report.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
   vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:report"), revokeObjectURL: vi.fn() });
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);

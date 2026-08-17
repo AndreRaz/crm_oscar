@@ -14,7 +14,7 @@ def inspector_client(client, db):
 
 
 def create_part_type(client, code="BRK-001"):
-    return client.post("/api/part-types", json={"code": code})
+    return client.post("/api/part-types", json={"code": code, "name": code, "description": "Test"})
 
 
 def create_characteristic(client, part_type_id=1, code="A1", **overrides):
@@ -34,7 +34,7 @@ class TestPartTypes:
         admin_client(client, db)
         response = create_part_type(client)
         assert response.status_code == 201
-        assert response.json() == {"id": 1, "code": "BRK-001", "image_path": None, "active": True}
+        assert response.json() == {"id": 1, "code": "BRK-001", "name": "BRK-001", "description": "Test", "image_path": None, "active": True}
         listing = client.get("/api/part-types")
         assert listing.status_code == 200
         assert [pt["code"] for pt in listing.json()] == ["BRK-001"]
@@ -63,9 +63,9 @@ class TestImage:
         admin_client(client, db)
         create_part_type(client)
         payload = bytes.fromhex(
-            "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
-            "1f15c4890000000d49444154789c626001000000ffff030000060005"
-            "57bfabd40000000049454e44ae426082")
+            "89504e470d0a1a0a0000000d4948445200000001000000010802000000"
+            "907753de0000000c49444154789c63606060000000040001f6173855"
+            "0000000049454e44ae426082")
         upload = client.post("/api/part-types/1/image",
                              files={"file": ("part.png", payload, "image/png")})
         assert upload.status_code == 200

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db, require_role
-from app.models import Balloon, Characteristic, PartType, User
+from app.models import Balloon, Characteristic, Measurement, PartType, User
 from app.schemas import (
     BalloonIn, BalloonOut, CharacteristicIn, CharacteristicOut, CharacteristicPatchIn,
     PartTypeIn, PartTypeOut, PartTypePatchIn,
@@ -28,7 +28,7 @@ def create_part_type(payload: PartTypeIn, db: Session = Depends(get_db),
                      _: User = Depends(require_role("admin"))):
     if db.scalar(select(PartType).where(PartType.code == payload.code)):
         raise HTTPException(status_code=409, detail="Part type code already exists")
-    part_type = PartType(code=payload.code)
+    part_type = PartType(**payload.model_dump())
     db.add(part_type)
     db.commit()
     db.refresh(part_type)
@@ -51,8 +51,8 @@ def patch_part_type(part_type_id: int, payload: PartTypePatchIn,
     part_type = db.get(PartType, part_type_id)
     if part_type is None:
         raise HTTPException(status_code=404, detail="Part type not found")
-    if payload.active is not None:
-        part_type.active = payload.active
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(part_type, field, value)
     db.commit()
     db.refresh(part_type)
     return part_type
@@ -85,7 +85,8 @@ def get_image(part_type_id: int, db: Session = Depends(get_db),
 @router.get("/{part_type_id}/characteristics", response_model=list[CharacteristicOut])
 def list_characteristics(part_type_id: int, db: Session = Depends(get_db),
                          _: User = Depends(get_current_user)):
-    return db.scalars(select(Characteristic).where(Characteristic.part_type_id == part_type_id)
+    return db.scalars(select(Characteristic).where(Characteristic.part_type_id == part_type_id,
+                                                    Characteristic.active.is_(True))
                       .order_by(Characteristic.sort_order, Characteristic.id)).all()
 
 
@@ -142,14 +143,18 @@ def delete_characteristic(characteristic_id: int, db: Session = Depends(get_db),
     characteristic = db.get(Characteristic, characteristic_id)
     if characteristic is None:
         raise HTTPException(status_code=404, detail="Characteristic not found")
-    db.delete(characteristic)
+    if db.scalar(select(Measurement.id).where(Measurement.characteristic_id == characteristic_id)):
+        characteristic.active = False
+    else:
+        db.delete(characteristic)
     db.commit()
 
 
 @router.get("/{part_type_id}/balloons", response_model=list[BalloonOut])
 def list_balloons(part_type_id: int, db: Session = Depends(get_db),
                   _: User = Depends(get_current_user)):
-    return db.scalars(select(Balloon).where(Balloon.part_type_id == part_type_id)
+    return db.scalars(select(Balloon).join(Characteristic).where(Balloon.part_type_id == part_type_id,
+                                                                 Characteristic.active.is_(True))
                       .order_by(Balloon.number)).all()
 
 
@@ -157,7 +162,7 @@ def list_balloons(part_type_id: int, db: Session = Depends(get_db),
 def create_balloon(part_type_id: int, payload: BalloonIn, db: Session = Depends(get_db),
                    _: User = Depends(require_role("admin"))):
     characteristic = db.get(Characteristic, payload.characteristic_id)
-    if characteristic is None or characteristic.part_type_id != part_type_id:
+    if characteristic is None or not characteristic.active or characteristic.part_type_id != part_type_id:
         raise HTTPException(status_code=404, detail="Characteristic not found")
     if db.scalar(select(Balloon).where(Balloon.part_type_id == part_type_id,
                                        Balloon.number == payload.number)):

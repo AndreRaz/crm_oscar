@@ -16,7 +16,7 @@ def inspector_client(client, db):
 
 
 def setup_catalog(client, chars=("A1", "A2")):
-    client.post("/api/part-types", json={"code": "BRK-001"})
+    client.post("/api/part-types", json={"code": "BRK-001", "name": "Bracket", "description": "Test"})
     for i, code in enumerate(chars):
         client.post("/api/part-types/1/characteristics", json={
             "code": code, "name": "Diameter", "unit": "mm", "tol_type": "SYMMETRIC",
@@ -56,7 +56,7 @@ class TestStart:
     def test_same_serial_allowed_on_other_part_type(self, db, client):
         admin_client(client, db)
         setup_catalog(client)
-        client.post("/api/part-types", json={"code": "BRK-002"})
+        client.post("/api/part-types", json={"code": "BRK-002", "name": "Bracket", "description": "Test"})
         client.post("/api/part-types/2/characteristics", json={
             "code": "B1", "tol_type": "SYMMETRIC", "nominal": 5.0, "tol_plus": 0.2})
         start(client, "S-001")
@@ -75,7 +75,7 @@ class TestStart:
     def test_characteristic_from_other_part_type_rejected(self, db, client):
         admin_client(client, db)
         setup_catalog(client)
-        client.post("/api/part-types", json={"code": "BRK-002"})
+        client.post("/api/part-types", json={"code": "BRK-002", "name": "Bracket", "description": "Test"})
         client.post("/api/part-types/2/characteristics", json={
             "code": "B1", "tol_type": "SYMMETRIC", "nominal": 5.0, "tol_plus": 0.2})
         assert start(client, characteristic_ids=(1, 3)).status_code == 422
@@ -125,7 +125,7 @@ class TestRecord:
 
     def test_limits_characteristic_snapshots_bounds_and_unilateral(self, db, client):
         admin_client(client, db)
-        client.post("/api/part-types", json={"code": "BRK-001"})
+        client.post("/api/part-types", json={"code": "BRK-001", "name": "Bracket", "description": "Test"})
         client.post("/api/part-types/1/characteristics", json={
             "code": "L1", "tol_type": "LIMITS", "min_limit": 9.5, "max_limit": 10.5})
         client.post("/api/part-types/1/characteristics", json={
