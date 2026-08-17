@@ -69,8 +69,8 @@ Chain strategy: pending
 
 ## Phase 6: Stability (PR6)
 
-- [ ] 6.1 `tests/test_stability.py`: contract shape, chronological points, nullable deviation, empty state → `routers/stability.py`, `services/stability.py`
-- [ ] 6.2 admin-only 403; type/characteristic mismatch 422; asymmetric limits distinct; annulled excluded
+- [x] 6.1 `tests/test_stability.py`: contract shape, chronological points, nullable deviation, empty state → `routers/stability.py`, `services/stability.py`
+- [x] 6.2 admin-only 403; type/characteristic mismatch 422; asymmetric limits distinct; annulled excluded
 
 ## Phase 7: Frontend Shell (PR7)
 
