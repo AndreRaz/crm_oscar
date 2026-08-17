@@ -9,6 +9,16 @@ export type Characteristic = {
 export type CharacteristicInput = Omit<Characteristic, "id" | "part_type_id">;
 export type Balloon = { id: number; part_type_id: number; number: number; characteristic_id: number; x: number; y: number };
 export type BalloonInput = Omit<Balloon, "id" | "part_type_id">;
+export type Measurement = {
+  id: number; characteristic_id: number; actual_value: number; status: "IN_TOLERANCE" | "PENDING";
+  nominal_snapshot?: number | null; lower_limit_snapshot?: number | null; upper_limit_snapshot?: number | null;
+};
+export type Inspection = {
+  id: number; part_type_id: number; serial: string; inspector: string;
+  status: "CONFORMING" | "PENDING" | "ACCEPTED_WITH_DEVIATIONS" | "REJECTED";
+  started_at: string; completed_at: string | null; annulled_at: string | null;
+  characteristic_ids: number[]; measurements: Measurement[];
+};
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -48,5 +58,10 @@ export const api = {
     balloons: (id: number) => request<Balloon[]>(`/api/part-types/${id}/balloons`),
     createBalloon: (id: number, input: BalloonInput) => request<Balloon>(`/api/part-types/${id}/balloons`, json("POST", input)),
     deleteBalloon: (id: number) => request<void>(`/api/balloons/${id}`, { method: "DELETE" }),
+  },
+  inspections: {
+    start: (input: { part_type_id: number; serial: string; characteristic_ids: number[] }) => request<Inspection>("/api/inspections", json("POST", input)),
+    record: (id: number, input: { characteristic_id: number; actual_value: number }) => request<Measurement>(`/api/inspections/${id}/measurements`, json("POST", input)),
+    complete: (id: number) => request<Inspection>(`/api/inspections/${id}/complete`, json("POST")),
   },
 };

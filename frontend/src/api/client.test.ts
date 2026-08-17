@@ -30,4 +30,15 @@ describe("API client", () => {
     expect(init.body).toBeInstanceOf(FormData);
     expect(init.headers).toBeUndefined();
   });
+
+  it("uses the inspection start, measurement, and completion contracts", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 20, status: "PENDING" }))));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.inspections.start({ part_type_id: 7, serial: "SER-1", characteristic_ids: [8] });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections", expect.objectContaining({ method: "POST", body: JSON.stringify({ part_type_id: 7, serial: "SER-1", characteristic_ids: [8] }) }));
+    await api.inspections.record(20, { characteristic_id: 8, actual_value: 10.1 });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/measurements", expect.objectContaining({ method: "POST", body: JSON.stringify({ characteristic_id: 8, actual_value: 10.1 }) }));
+    await api.inspections.complete(20);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/complete", expect.objectContaining({ method: "POST" }));
+  });
 });
