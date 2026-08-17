@@ -61,4 +61,14 @@ describe("API client", () => {
     await expect(api.inspections.report(20)).resolves.toBeInstanceOf(Blob);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/report.pdf", expect.objectContaining({ credentials: "include" }));
   });
+
+  it("requests stability for exactly one part type and characteristic", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ characteristic: {}, points: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.stability.analysis(7, 8);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/stability?part_type_id=7&characteristic_id=8",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
 });

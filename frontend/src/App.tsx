@@ -3,6 +3,7 @@ import { api, Role, User } from "./api/client";
 import Catalog from "./Catalog";
 import Inspection from "./Inspection";
 import Deviations from "./Deviations";
+import Stability from "./Stability";
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [error, setError] = useState("");
@@ -64,6 +65,6 @@ export default function App() {
   if (user === null) return <Login onLogin={enter} />;
   return <><header><div><strong>Control dimensional</strong><small>{user.username}</small></div><button onClick={async () => { await api.auth.logout(); setUser(null); }}>Cerrar sesión</button></header>
     <nav aria-label="Navegación principal">{tabs[user.role].map(([key, label]) => <button role="tab" aria-selected={page === key} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav>
-    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection /> : page === "deviations" ? <Deviations /> : <section><h2>{tabs[user.role].find(([key]) => key === page)?.[1]}</h2><p>Disponible en la siguiente fase.</p></section>}</main>
+    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection /> : page === "deviations" ? <Deviations /> : <Stability />}</main>
   </>;
 }

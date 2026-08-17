@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
     balloons: vi.fn(), createBalloon: vi.fn(), deleteBalloon: vi.fn(), imageUrl: vi.fn((id) => `/api/part-types/${id}/image`),
   },
   deviations: { list: vi.fn(), dispose: vi.fn() },
+  stability: { analysis: vi.fn() },
   inspections: { detail: vi.fn(), annul: vi.fn(), report: vi.fn() },
 }));
 vi.mock("./api/client", () => ({ api }));
@@ -39,6 +40,8 @@ describe("frontend shell", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No fue posible iniciar sesión");
     await user.click(screen.getByRole("button", { name: "Ingresar" }));
     expect(await screen.findByRole("navigation")).toHaveTextContent("UsuariosCatálogoDesviacionesEstabilidad");
+    await user.click(screen.getByRole("tab", { name: "Estabilidad" }));
+    expect(await screen.findByText("Selecciona un tipo de pieza y una característica.")).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Desviaciones" }));
     expect(await screen.findByText("No hay desviaciones pendientes.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
