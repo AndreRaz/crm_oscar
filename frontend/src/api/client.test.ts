@@ -17,4 +17,17 @@ describe("API client", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Invalid credentials" }), { status: 401 })));
     await expect(api.auth.me()).rejects.toThrow("Invalid credentials");
   });
+
+  it("uses typed catalog JSON endpoints and preserves multipart image headers", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 7, code: "PT-100", image_path: null, active: true }))));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.catalog.createPart({ code: "PT-100" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types", expect.objectContaining({ method: "POST", body: JSON.stringify({ code: "PT-100" }) }));
+    const file = new File(["image"], "pieza.png", { type: "image/png" });
+    await api.catalog.uploadImage(7, file);
+    const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe("/api/part-types/7/image");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect(init.headers).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -6,7 +6,11 @@ import App from "./App";
 const api = vi.hoisted(() => ({
   auth: { me: vi.fn(), login: vi.fn(), logout: vi.fn() },
   users: { list: vi.fn(), create: vi.fn(), patch: vi.fn() },
-  catalog: { list: vi.fn(), characteristics: vi.fn() },
+  catalog: {
+    list: vi.fn(), createPart: vi.fn(), patchPart: vi.fn(), uploadImage: vi.fn(),
+    characteristics: vi.fn(), createCharacteristic: vi.fn(), patchCharacteristic: vi.fn(), deleteCharacteristic: vi.fn(),
+    balloons: vi.fn(), createBalloon: vi.fn(), deleteBalloon: vi.fn(), imageUrl: vi.fn((id) => `/api/part-types/${id}/image`),
+  },
 }));
 vi.mock("./api/client", () => ({ api }));
 
@@ -14,7 +18,10 @@ const admin = { id: 1, username: "ana", role: "admin", active: true };
 const inspector = { id: 2, username: "luis", role: "inspector", active: true };
 
 describe("frontend shell", () => {
-  beforeEach(() => { vi.clearAllMocks(); api.users.list.mockResolvedValue([]); api.catalog.list.mockResolvedValue([]); });
+  beforeEach(() => {
+    vi.clearAllMocks(); api.users.list.mockResolvedValue([]); api.catalog.list.mockResolvedValue([]);
+    api.catalog.characteristics.mockResolvedValue([]); api.catalog.balloons.mockResolvedValue([]);
+  });
 
   it("shows loading, login errors, then opens the administrator shell and logs out", async () => {
     api.auth.me.mockRejectedValue(new Error("Sin sesión"));
@@ -54,8 +61,9 @@ describe("frontend shell", () => {
 
   it("gives inspectors a read-only catalog without administrator tabs", async () => {
     api.auth.me.mockResolvedValue(inspector);
-    api.catalog.list.mockResolvedValue([{ id: 7, code: "PT-100", image_path: null, active: true }]);
+    api.catalog.list.mockResolvedValue([{ id: 7, code: "PT-100", image_path: "7.png", active: true }]);
     api.catalog.characteristics.mockResolvedValue([{ id: 8, part_type_id: 7, code: "L1", name: "Longitud", unit: "mm", tol_type: "LIMITS", nominal: null, tol_plus: null, min_limit: 9, max_limit: 11, sort_order: 0 }]);
+    api.catalog.balloons.mockResolvedValue([{ id: 9, part_type_id: 7, number: 1, characteristic_id: 8, x: .25, y: .75 }]);
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText("PT-100")).toBeInTheDocument();
@@ -64,5 +72,42 @@ describe("frontend shell", () => {
     expect(screen.queryByRole("tab", { name: "Usuarios" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Crear tipo|Editar|Desactivar tipo/)).not.toBeInTheDocument();
     await waitFor(() => expect(api.catalog.characteristics).toHaveBeenCalledWith(7));
+    expect(screen.getByLabelText("Globo 1: L1")).toBeInTheDocument();
+  });
+
+  it("lets an administrator manage both tolerance formats, upload an image, and place a normalized balloon", async () => {
+    const part = { id: 7, code: "PT-100", image_path: null, active: true };
+    const symmetric = { id: 8, part_type_id: 7, code: "D1", name: "Diámetro", unit: "mm", tol_type: "SYMMETRIC", nominal: 10, tol_plus: .2, min_limit: null, max_limit: null, sort_order: 0 };
+    const limits = { ...symmetric, id: 9, code: "L1", tol_type: "LIMITS", nominal: null, tol_plus: null, min_limit: 9, max_limit: null };
+    api.auth.me.mockResolvedValue(admin); api.catalog.list.mockResolvedValue([part]);
+    api.catalog.createPart.mockResolvedValue({ ...part, id: 10, code: "PT-200" });
+    api.catalog.uploadImage.mockResolvedValue({ ...part, image_path: "7.png" });
+    api.catalog.createCharacteristic.mockResolvedValueOnce(symmetric).mockResolvedValueOnce(limits);
+    api.catalog.createBalloon.mockResolvedValue({ id: 12, part_type_id: 7, number: 3, characteristic_id: 8, x: .5, y: .5 });
+    const user = userEvent.setup(); render(<App />);
+    await user.click(await screen.findByRole("tab", { name: "Catálogo" }));
+    await user.type(screen.getByLabelText("Código del nuevo tipo"), "PT-200");
+    await user.click(screen.getByRole("button", { name: "Crear tipo" }));
+    expect(api.catalog.createPart).toHaveBeenCalledWith({ code: "PT-200" });
+    await user.click(screen.getByRole("button", { name: "Ver PT-100" }));
+    const file = new File(["image"], "pieza.png", { type: "image/png" });
+    await user.upload(screen.getByLabelText("Imagen de la pieza"), file);
+    expect(api.catalog.uploadImage).toHaveBeenCalledWith(7, file);
+    await user.type(screen.getByLabelText("Código de característica"), "D1");
+    await user.type(screen.getByLabelText("Nominal"), "10"); await user.type(screen.getByLabelText("Tolerancia ±"), "0.2");
+    await user.click(screen.getByRole("button", { name: "Guardar característica" }));
+    expect(api.catalog.createCharacteristic).toHaveBeenCalledWith(7, expect.objectContaining({ code: "D1", tol_type: "SYMMETRIC", nominal: 10, tol_plus: .2, min_limit: null, max_limit: null }));
+    await user.selectOptions(screen.getByLabelText("Formato de tolerancia"), "LIMITS");
+    await user.clear(screen.getByLabelText("Código de característica")); await user.type(screen.getByLabelText("Código de característica"), "L1");
+    await user.type(screen.getByLabelText("Límite mínimo"), "9");
+    await user.click(screen.getByRole("button", { name: "Guardar característica" }));
+    expect(api.catalog.createCharacteristic).toHaveBeenLastCalledWith(7, expect.objectContaining({ code: "L1", tol_type: "LIMITS", nominal: null, tol_plus: null, min_limit: 9, max_limit: null }));
+    const image = screen.getByAltText("Plano de PT-100");
+    vi.spyOn(image, "getBoundingClientRect").mockReturnValue({ left: 10, top: 20, width: 100, height: 100 } as DOMRect);
+    fireEvent.click(image, { clientX: 60, clientY: 70 });
+    await user.type(screen.getByLabelText("Número de globo"), "3");
+    await user.selectOptions(screen.getByLabelText("Característica del globo"), "8");
+    await user.click(screen.getByRole("button", { name: "Guardar globo" }));
+    expect(api.catalog.createBalloon).toHaveBeenCalledWith(7, { number: 3, characteristic_id: 8, x: .5, y: .5 });
   });
 });

@@ -79,7 +79,7 @@ Chain strategy: pending
 
 ## Phase 8: Frontend Features (PR8)
 
-- [ ] 8.1 Admin catalog forms + BalloonEditor; RTL tests
+- [x] 8.1 Admin catalog forms + BalloonEditor; RTL tests
 - [ ] 8.2 3-pane inspection (balloon/nominal/actual): server statuses only, invalid-input feedback; RTL
 - [ ] 8.3 Deviations queue + disposition/annul forms (mandatory text) + report download authz; RTL
 - [ ] 8.4 Stability: Recharts trend + nominal/limit ReferenceLines from contract, empty state; RTL
