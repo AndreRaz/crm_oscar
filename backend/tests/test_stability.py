@@ -92,3 +92,55 @@ class TestStabilityContract:
         assert response.status_code == 200
         assert response.json()["points"] == []
         assert response.json()["characteristic"]["code"] == "A1"
+
+
+class TestStabilityGuards:
+    def test_inspector_is_forbidden(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        inspector_client(client, db)
+
+        assert get_stability(client).status_code == 403
+
+    def test_characteristic_from_another_part_type_is_rejected(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/part-types", json={"code": "BRK-002"})
+        foreign = client.post("/api/part-types/2/characteristics", json={
+            "code": "B1", "tol_type": "SYMMETRIC",
+            "nominal": 5.0, "tol_plus": 0.2,
+        }).json()
+
+        response = get_stability(client, part_type_id=1,
+                                 characteristic_id=foreign["id"])
+
+        assert response.status_code == 422
+
+    def test_asymmetric_limits_remain_distinct(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+
+        characteristic = get_stability(client, characteristic_id=2).json()[
+            "characteristic"]
+
+        assert characteristic["nominal"] is None
+        assert characteristic["lower_limit"] == 9.5
+        assert characteristic["upper_limit"] == 10.8
+
+    def test_annulled_inspection_is_excluded(self, db, client):
+        admin_client(client, db)
+        setup_catalog(client)
+        client.post("/api/auth/logout")
+        inspector_client(client, db)
+        complete_measurement(client, "S-001", 1, 10.0)
+        complete_measurement(client, "S-002", 1, 10.05)
+        client.post("/api/auth/logout")
+        login(client, "admin")
+        assert client.post("/api/inspections/2/annul", json={
+            "reason": "Fixture setup error",
+        }).status_code == 200
+
+        points = get_stability(client).json()["points"]
+
+        assert [point["serial"] for point in points] == ["S-001"]

@@ -8,6 +8,8 @@ from app.services.inspection import resolve_limits
 
 def analysis(db: Session, part_type_id: int, characteristic_id: int) -> dict:
     characteristic = db.get(Characteristic, characteristic_id)
+    if characteristic is None or characteristic.part_type_id != part_type_id:
+        raise ValueError("Characteristic does not belong to the selected part type")
     nominal, lower, upper = resolve_limits(characteristic)
     rows = db.execute(
         select(Measurement, Inspection, Piece)
@@ -17,6 +19,7 @@ def analysis(db: Session, part_type_id: int, characteristic_id: int) -> dict:
             Piece.part_type_id == part_type_id,
             Measurement.characteristic_id == characteristic_id,
             Inspection.completed_at.is_not(None),
+            Inspection.annulled_at.is_(None),
         )
         .order_by(Inspection.completed_at, Inspection.id)
     ).all()
