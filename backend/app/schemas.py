@@ -119,6 +119,9 @@ class MeasurementOut(BaseModel):
     upper_limit_snapshot: float | None
     deviation: float | None
     status: str
+    disposition_by: int | None = None
+    disposition_at: datetime | None = None
+    disposition_note: str | None = None
 
 
 class InspectionOut(BaseModel):
@@ -131,3 +134,26 @@ class InspectionOut(BaseModel):
     completed_at: datetime | None
     characteristic_ids: list[int]
     measurements: list[MeasurementOut] = []
+
+
+class QueueInspectionOut(BaseModel):
+    id: int
+    part_type_code: str
+    serial: str
+    inspector: str
+    completed_at: datetime
+    status: str
+
+
+class DeviationGroupOut(BaseModel):
+    inspection: QueueInspectionOut
+    measurements: list[MeasurementOut]
+
+
+class DeviationsOut(BaseModel):
+    groups: list[DeviationGroupOut]
+
+
+class DispositionIn(BaseModel):
+    action: str = Field(pattern="^(accept|reject)$")
+    text: str = Field(max_length=500)
