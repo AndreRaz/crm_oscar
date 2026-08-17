@@ -16,6 +16,11 @@ class DispositionError(Exception):
         super().__init__(detail)
 
 
+def _recompute_status(db: Session, inspection: Inspection) -> None:
+    inspection.status = worst_of(db.scalars(select(Measurement.status).where(
+        Measurement.inspection_id == inspection.id)).all())
+
+
 def pending_queue(db: Session) -> list[dict]:
     """Group PENDING deviations by completed, non-annulled inspection, newest first."""
     inspections = db.scalars(
@@ -51,15 +56,34 @@ def dispose_measurement(db: Session, measurement: Measurement, action: str,
         raise DispositionError(422, "Disposition note or reason is required")
     if measurement.status != MeasurementStatus.PENDING:
         raise DispositionError(409, "Measurement is no longer pending")
+    inspection = db.get(Inspection, measurement.inspection_id)
+    if inspection.annulled_at is not None:
+        raise DispositionError(409, "Annulled inspection is immutable")
     measurement.status = (
         MeasurementStatus.DEVIATION_ACCEPTED if action == "accept"
         else MeasurementStatus.REJECTED)
     measurement.disposition_by = user.id
     measurement.disposition_at = utcnow()
     measurement.disposition_note = text.strip()
-    inspection = db.get(Inspection, measurement.inspection_id)
-    inspection.status = worst_of(db.scalars(select(Measurement.status).where(
-        Measurement.inspection_id == inspection.id)).all())
+    _recompute_status(db, inspection)
     db.commit()
     db.refresh(measurement)
     return measurement
+
+
+def annul_inspection(db: Session, inspection: Inspection, reason: str,
+                     user: User) -> Inspection:
+    """Annul a completed inspection while retaining its immutable record and audit."""
+    if not reason.strip():
+        raise DispositionError(422, "Annulment reason is required")
+    if inspection.completed_at is None:
+        raise DispositionError(409, "Only completed inspections can be annulled")
+    if inspection.annulled_at is not None:
+        raise DispositionError(409, "Inspection is already annulled")
+    _recompute_status(db, inspection)
+    inspection.annulled_at = utcnow()
+    inspection.annulled_by = user.id
+    inspection.annulment_reason = reason.strip()
+    db.commit()
+    db.refresh(inspection)
+    return inspection

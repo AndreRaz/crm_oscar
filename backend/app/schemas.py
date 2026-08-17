@@ -132,8 +132,15 @@ class InspectionOut(BaseModel):
     status: str
     started_at: datetime
     completed_at: datetime | None
+    annulled_at: datetime | None = None
+    annulled_by: int | None = None
+    annulment_reason: str | None = None
     characteristic_ids: list[int]
     measurements: list[MeasurementOut] = []
+
+
+class AnnulmentIn(BaseModel):
+    reason: str = Field(max_length=500)
 
 
 class QueueInspectionOut(BaseModel):
