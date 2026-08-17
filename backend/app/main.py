@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, init_db
-from app.routers import auth, catalog, users
+from app.routers import auth, catalog, inspections, users
 from app.services.auth import seed_admin
 
 
@@ -26,3 +26,4 @@ app.include_router(users.router)
 app.include_router(catalog.router)
 app.include_router(catalog.characteristics_router)
 app.include_router(catalog.balloons_router)
+app.include_router(inspections.router)
