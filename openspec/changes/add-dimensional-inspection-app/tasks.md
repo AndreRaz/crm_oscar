@@ -86,5 +86,5 @@ Chain strategy: pending
 
 ## Phase 9: Integration & Wrap-up
 
-- [ ] 9.1 Backend e2e flow test: login → catalog → inspect → complete → dispose → report → stability
-- [ ] 9.2 README: WeasyPrint system deps, run commands; remove scaffold leftovers
+- [x] 9.1 Backend e2e flow test: login → catalog → inspect → complete → dispose → report → stability
+- [x] 9.2 README: WeasyPrint system deps, run commands; remove scaffold leftovers
