@@ -22,6 +22,14 @@ export type Inspection = {
   started_at: string; completed_at: string | null; annulled_at: string | null;
   characteristic_ids: number[]; measurements: Measurement[];
 };
+export type StabilityPoint = {
+  inspection_id: number; serial: string; completed_at: string; actual: number;
+  deviation: number | null; status: Measurement["status"];
+};
+export type StabilityAnalysis = {
+  characteristic: { code: string; name: string | null; unit: string | null; nominal: number | null; lower_limit: number | null; upper_limit: number | null };
+  points: StabilityPoint[];
+};
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -82,5 +90,8 @@ export const api = {
   deviations: {
     list: () => request<{ groups: DeviationGroup[] }>("/api/deviations"),
     dispose: (id: number, input: { action: "accept" | "reject"; text: string }) => request<Measurement>(`/api/measurements/${id}/disposition`, json("POST", input)),
+  },
+  stability: {
+    analysis: (partTypeId: number, characteristicId: number) => request<StabilityAnalysis>(`/api/stability?part_type_id=${partTypeId}&characteristic_id=${characteristicId}`),
   },
 };
