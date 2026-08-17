@@ -52,9 +52,9 @@ Chain strategy: pending
 
 ## Phase 3: Inspection Execution (PR3)
 
-- [ ] 3.1 `tests/test_inspection.py`: start — Piece auto-create, dup serial 409, cross-type serial OK, inactive type rejected → `routers/inspections.py`, `services/inspection.py`
-- [ ] 3.2 record: resolved-limit snapshot + evaluate + deviation; dup characteristic 409 (A3); non-numeric 422
-- [ ] 3.3 complete: worst-of persisted; locked against later edits
+- [x] 3.1 `tests/test_inspection.py`: start — Piece auto-create, dup serial 409, cross-type serial OK, inactive type rejected → `routers/inspections.py`, `services/inspection.py`
+- [x] 3.2 record: resolved-limit snapshot + evaluate + deviation; dup characteristic 409 (A3); non-numeric 422
+- [x] 3.3 complete: worst-of persisted; locked against later edits
 
 ## Phase 4: Disposition (PR4)
 
