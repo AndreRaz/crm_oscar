@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR6 merged; PR7 is `feat/frontend-shell` off updated main.
+Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR7 merged; PR8a is `feat/frontend-catalog` off updated main.
 
 ## Tasks (cumulative)
 
@@ -23,7 +23,8 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR6 merged; PR7 is `fe
 - [x] 6.2 admin-only scoping, cross-type 422, asymmetric limits, and annulled exclusion
 - [x] 7.1 Vite + TypeScript scaffold, credentialed API client, session login/logout/me, Spanish role tabs and states
 - [x] 7.2 admin user management and inspector read-only catalog with characteristic details
-- [ ] Phase 8 (PR8) … Phase 9 pending
+- [x] 8.1 admin catalog forms, image upload, dual-format characteristics, normalized linked balloons, and inspector read-only view
+- [ ] Tasks 8.2–8.4 and Phase 9 pending
 
 ## TDD Cycle Evidence
 
@@ -48,6 +49,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR6 merged; PR7 is `fe
 | 6.2 | `tests/test_stability.py` (TestStabilityGuards) | Integration | ✅ 3/3 contract tests green | ✅ 3 failed, 1 passed (403 / mismatch / annulled) | ✅ 4 passed | ✅ role / cross-type / asymmetric references / annulled exclusion | ➖ None needed |
 | 7.1 | `src/api/client.test.ts`, `src/App.test.tsx` | Unit + RTL integration | N/A (new) | ✅ 2 suites failed: missing `client`/`App` | ✅ 5 passed | ✅ success/error + admin/inspector/session paths | ✅ RTL cleanup added; 5/5 green |
 | 7.2 | `src/App.test.tsx` | RTL integration | N/A (new) | ✅ missing `App` | ✅ 3 component flows passed | ✅ create/deactivate/reset + read-only non-empty catalog | ✅ accessible action labels; 3/3 green |
+| 8.1 | `src/App.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 5/5 prior green | ✅ 3 failed, 4 passed (catalog APIs/forms/balloons absent) | ✅ 7 passed | ✅ symmetric + unilateral LIMITS, multipart upload, normalized balloon, inspector read-only | ✅ keyed tolerance fields prevent stale values across format changes; 7/7 green |
 
 ## Work Unit Evidence
 
@@ -60,6 +62,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR6 merged; PR7 is `fe
 | PR5 | `.venv/bin/python -m pytest tests/test_report.py` in `backend/` | **5 passed**; full backend **98 passed** | `.venv/bin/python -m pytest tests/test_report.py::test_report_download_returns_pdf_bytes_when_weasyprint_is_available` → **1 passed**; TestClient runs auth→SQLite→Jinja→WeasyPrint and verifies `%PDF` | revert PR5 commits `6d09fb5`, `ce176be` plus this progress-doc commit; removes report service/template/router/tests and dependency additions only |
 | PR6 | `.venv/bin/python -m pytest tests/test_stability.py` in `backend/` | **7 passed**; full backend **105 passed** | `.venv/bin/python -m pytest tests/test_stability.py::TestStabilityContract::test_returns_reference_lines_and_chronological_measurement_points` → **1 passed**; TestClient runs auth→inspection lifecycle→SQLite query→JSON contract | revert PR6 commits `a35d996`, `b12fba5` plus this progress-doc commit; removes stability router/service/tests and app wiring only |
 | PR7 | `npm run test -- --run` in `frontend/` | **5 passed** across 2 files | `npm run dev -- --host 127.0.0.1`; Vite ready in 143 ms and `GET /` returned 530 bytes | revert `e9f02db` plus the PR7 progress-doc commit; removes `frontend/` and its three root ignore entries only |
+| PR8a | `npm run test -- --run src/App.test.tsx src/api/client.test.ts` in `frontend/` | **7 passed** across 2 files; `npm run build` passed | `npm run dev -- --host 127.0.0.1`; `GET /` returned **200** and 332 bytes | revert `2d95e28` plus the PR8a progress-doc commit; removes catalog management UI/client methods/tests/styles only |
 
 ## Commits
 
@@ -102,6 +105,10 @@ PR7 (`feat/frontend-shell`, off updated main):
 - `e9f02db feat(frontend): add authenticated role-based shell`
 - docs commit: `docs(frontend): record PR7 apply progress`
 
+PR8a (`feat/frontend-catalog`, off updated main):
+- `2d95e28 feat(frontend): add catalog management and balloon editor`
+- docs commit: `docs(frontend): record task 8.1 apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
@@ -135,4 +142,4 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 
 ## Next steps
 
-- PR8: Frontend feature pages (Phase 8, tasks 8.1–8.4).
+- Next autonomous frontend slice: task 8.2 inspection workspace.
