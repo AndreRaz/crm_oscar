@@ -1,0 +1,16 @@
+:root { font-family: system-ui, sans-serif; color: #172033; background: #f4f6f8; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header, nav, main { max-width: 70rem; margin: auto; padding: 1rem; }
+header, nav, .row, .list li { display: flex; gap: .75rem; align-items: center; }
+header { justify-content: space-between; } header small { display: block; color: #526174; }
+nav { border-block: 1px solid #dce2e8; }
+button, input, select { font: inherit; padding: .55rem .75rem; }
+button { cursor: pointer; } button[aria-selected="true"] { font-weight: 700; }
+.card { background: white; border: 1px solid #dce2e8; border-radius: .5rem; padding: 1rem; }
+.login { max-width: 24rem; margin: 10vh auto; display: grid; gap: 1rem; }
+label { display: grid; gap: .25rem; }
+.row { flex-wrap: wrap; }
+.list { padding: 0; } .list li { background: white; padding: .75rem; margin-block: .5rem; }
+.list li span { margin-right: auto; }
+[role="alert"] { color: #a11818; }
