@@ -152,3 +152,8 @@ class DeviationGroupOut(BaseModel):
 
 class DeviationsOut(BaseModel):
     groups: list[DeviationGroupOut]
+
+
+class DispositionIn(BaseModel):
+    action: str = Field(pattern="^(accept|reject)$")
+    text: str = Field(max_length=500)

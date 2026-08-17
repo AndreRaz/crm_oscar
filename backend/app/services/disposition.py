@@ -42,3 +42,24 @@ def pending_queue(db: Session) -> list[dict]:
             "measurements": [MeasurementOut.model_validate(m) for m in measurements],
         })
     return groups
+
+
+def dispose_measurement(db: Session, measurement: Measurement, action: str,
+                        text: str, user: User) -> Measurement:
+    """Apply an admin disposition and re-derive the inspection worst-of status (ADR-5)."""
+    if not text.strip():
+        raise DispositionError(422, "Disposition note or reason is required")
+    if measurement.status != MeasurementStatus.PENDING:
+        raise DispositionError(409, "Measurement is no longer pending")
+    measurement.status = (
+        MeasurementStatus.DEVIATION_ACCEPTED if action == "accept"
+        else MeasurementStatus.REJECTED)
+    measurement.disposition_by = user.id
+    measurement.disposition_at = utcnow()
+    measurement.disposition_note = text.strip()
+    inspection = db.get(Inspection, measurement.inspection_id)
+    inspection.status = worst_of(db.scalars(select(Measurement.status).where(
+        Measurement.inspection_id == inspection.id)).all())
+    db.commit()
+    db.refresh(measurement)
+    return measurement
