@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8c merged; PR8d is `feat/frontend-stability` off updated main.
+Mode: Strict TDD for implementation and integration behavior. Chain: stacked-to-main. Branches: PR1–PR8d merged; PR9 is `feat/integration-docs` off updated main.
 
 ## Tasks (cumulative)
 
@@ -27,7 +27,8 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8c merged; PR8d is `
 - [x] 8.2 inspector workspace: active part/serial/characteristic selection, 3-pane guided capture, active balloon, server measurement/final statuses, numeric feedback, and navigation
 - [x] 8.3 admin deviation queue grouped by inspection, mandatory disposition/annulment text, server status refresh, and authorized PDF downloads for admins and owning inspectors
 - [x] 8.4 admin-only scoped stability selection, chronological table, nullable deviation display, and Recharts trend with server reference lines
-- [ ] Phase 9 pending
+- [x] 9.1 full TestClient lifecycle: login, catalog, characteristic/balloon, inspection, completion lock, disposition, PDF report, and stability; role and snapshot immutability contracts included
+- [x] 9.2 root README: prerequisites, Python/Node setup, Pango/Cairo dependencies, local SQLite run, initial admin variables, test/build commands, deployment boundary, and backup/restore notes; no tracked scaffold leftovers were safe or necessary to remove
 
 ## TDD Cycle Evidence
 
@@ -56,6 +57,9 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8c merged; PR8d is `
 | 8.2 | `src/Inspection.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 7/7 prior green | ✅ 2 suites failed (missing `Inspection` and inspection client) | ✅ 6 focused passed | ✅ IN_TOLERANCE/PENDING, two tolerance formats, navigation, invalid input, server-derived completion | ✅ focused 6/6 and full 10/10 green |
 | 8.3 | `src/Deviations.test.tsx`, `src/Inspection.test.tsx`, `src/App.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 10/10 prior green | ✅ 3 files failed: missing queue/client/report behavior | ✅ 10 focused passed | ✅ accept/reject, blank text, annulment, admin/inspector access, PDF response, server status refresh | ✅ shared report downloader; focused/full 14/14 and build green |
 | 8.4 | `src/Stability.test.tsx`, `src/App.test.tsx`, `src/api/client.test.ts` | RTL integration + unit | ✅ 9/9 prior green | ✅ 3 files failed: missing stability component/client/wiring | ✅ 13 focused passed | ✅ chronological/non-empty, nullable deviation, empty, catalog/API error paths | ✅ loading and error states made mutually exclusive; 13/13 focused green |
+| 9.1 | `tests/test_lifecycle.py` | TestClient integration | ✅ 105/105 prior green | ✅ target absent: pytest exit 4 | ✅ 1 focused passed | ✅ happy lifecycle plus inspector/admin/other-inspector authorization and completed/snapshot immutability branches | ➖ Test-only work unit; no production refactor needed |
+
+Task 9.2 is documentation-only and was explicitly outside the task 9.1 Strict TDD scope; commands were validated through the PR9 work-unit evidence below.
 
 ## Work Unit Evidence
 
@@ -72,6 +76,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR8c merged; PR8d is `
 | PR8b | `npm run test -- --run src/Inspection.test.tsx src/api/client.test.ts` in `frontend/` | **6 passed** across 2 files; full frontend **10 passed**; `npm run build` passed | `npm run dev -- --host 127.0.0.1`; `GET /` returned **200** and 348 bytes | revert `20d9791` plus the PR8b progress-doc commit; removes inspection workspace/client methods/tests/styles only |
 | PR8c | `npm run test -- --run src/Deviations.test.tsx src/Inspection.test.tsx src/App.test.tsx src/api/client.test.ts` in `frontend/` | **14 passed** across 4 files; `npm run build` passed | `npm run dev -- --host 127.0.0.1 --port 4175`; `GET /` returned **200** and 530 bytes; RTL covers queue→dispose/annul→refresh/download | revert `0e68011` plus the PR8c progress-doc commit; removes deviation workspace, shared report downloader, API methods, tests, and styles only |
 | PR8d | `npm run test -- --run src/Stability.test.tsx src/App.test.tsx src/api/client.test.ts` in `frontend/` | **13 passed** across 3 files; full frontend **18 passed**; `npm run build` passed | `npm run dev -- --host 127.0.0.1 --port 4176`; `GET /` returned **200** and 530 bytes; RTL covers scoped selection→contract→chart/table plus empty/error states | revert `723997c` plus the PR8d progress-doc commit; removes stability view, typed API contract, App wiring, tests, and styles only |
+| PR9 | `.venv/bin/python -m pytest tests/test_lifecycle.py` in `backend/` | **1 passed** focused; backend **106 passed**; frontend **18 passed**; frontend build passed | bounded uvicorn + Vite proxy smoke with temporary SQLite: login **200**, `/api/auth/me` **200**, frontend **200** and 530 bytes | revert `backend/tests/test_lifecycle.py`, `README.md`, and the two Phase 9 checkbox/evidence updates; no production behavior removed |
 
 ## Commits
 
@@ -130,6 +135,11 @@ PR8d (`feat/frontend-stability`, off updated main):
 - `723997c feat(frontend): add stability trend analysis`
 - docs commit: `docs(frontend): record task 8.4 apply progress`
 
+PR9 (`feat/integration-docs`, off updated main):
+- `test(backend): cover complete inspection lifecycle`
+- `docs: add local setup and operations guide`
+- docs commit: `docs: complete dimensional inspection apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
@@ -163,4 +173,4 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 
 ## Next steps
 
-- Phase 9 integration flow and project documentation remain pending.
+- All 25 tasks are complete; run `sdd-verify`, then archive the change after verification succeeds.
