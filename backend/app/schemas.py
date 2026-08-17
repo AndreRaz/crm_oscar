@@ -1,4 +1,6 @@
 """Pydantic v2 I/O schemas."""
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -93,3 +95,39 @@ class BalloonOut(BaseModel):
     characteristic_id: int
     x: float
     y: float
+
+
+class InspectionStartIn(BaseModel):
+    part_type_id: int
+    serial: str = Field(min_length=1, max_length=80)
+    characteristic_ids: list[int] = Field(min_length=1)
+
+
+class MeasurementIn(BaseModel):
+    characteristic_id: int
+    actual_value: float
+
+
+class MeasurementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    characteristic_id: int
+    actual_value: float
+    nominal_snapshot: float | None
+    lower_limit_snapshot: float | None
+    upper_limit_snapshot: float | None
+    deviation: float | None
+    status: str
+
+
+class InspectionOut(BaseModel):
+    id: int
+    part_type_id: int
+    serial: str
+    inspector: str
+    status: str
+    started_at: datetime
+    completed_at: datetime | None
+    characteristic_ids: list[int]
+    measurements: list[MeasurementOut] = []
