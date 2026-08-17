@@ -60,7 +60,7 @@ Chain strategy: pending
 
 - [x] 4.1 `tests/test_disposition.py`: grouped queue (shape above); inspector disposition 403 → `routers/deviations.py`, `services/disposition.py`
 - [x] 4.2 accept/reject: blank text 422 stays PENDING; audit by/at/note; status recomputed
-- [ ] 4.3 annul: admin-only, blank reason 422, audit retained; completed records immutable
+- [x] 4.3 annul: admin-only, blank reason 422, audit retained; completed records immutable
 
 ## Phase 5: Report (PR5)
 

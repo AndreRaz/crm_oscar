@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: `feat/backend-core` (PR1, merged), `feat/part-catalog` (PR2, merged), `feat/inspection-execution` (PR3, off updated main).
+Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR3 merged; PR4 is `feat/deviation-disposition` off updated main.
 
 ## Tasks (cumulative)
 
@@ -14,7 +14,10 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: `feat/backend-core` (PR1, me
 - [x] 3.1 inspection start: Piece auto-create on start, dup serial 409, cross-type serial OK, inactive type 409, foreign characteristic 422, 401/404 → `routers/inspections.py`, `services/inspection.py`
 - [x] 3.2 record: resolved-limit snapshot (SYMMETRIC→nominal±tol; LIMITS→min/max, unilateral null bound) + server-side evaluate + deviation, dup characteristic 409 (A3), non-numeric 422, snapshot survives characteristic edit
 - [x] 3.3 complete: worst-of persisted (CONFORMING/PENDING covered; REJECTED/ACCEPTED_WITH_DEVIATIONS derive via PR4 disposition), completed_at set, locked against later edits (record 409, re-complete 409)
-- [ ] Phase 4 (PR4) … Phase 9 pending
+- [x] 4.1 grouped pending-deviation queue: admin-only, newest-first, conforming/annulled excluded → `routers/deviations.py`, `services/disposition.py`
+- [x] 4.2 accept/reject: mandatory text, immutable audit, worst-of inspection status recompute
+- [x] 4.3 annulment: completed/admin-only, mandatory reason, immutable audit/measurements; annulled records excluded from queue
+- [ ] Phase 5 (PR5) … Phase 9 pending
 
 ## TDD Cycle Evidence
 
@@ -30,6 +33,9 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: `feat/backend-core` (PR1, me
 | 3.1 | `tests/test_inspection.py` (TestStart) | Integration | ✅ 62/62 prior green | ✅ routes missing (6 fail) | ✅ 6 passed | ✅ valid start / dup serial 409 / cross-type serial OK / inactive type 409 / foreign char 422 / 401+404 | ➖ None needed |
 | 3.2 | `tests/test_inspection.py` (TestRecord) | Integration | ✅ 68/68 prior green | ✅ endpoint missing (7 fail) | ✅ 7 passed | ✅ in-range snapshot+deviation / out-of-range PENDING / LIMITS unilateral bounds / dup 409 / non-numeric 422 / snapshot survives edit / 401+404 | ✅ GET measurements population bug caught by RED; router helper extraction, suite green |
 | 3.3 | `tests/test_inspection.py` (TestComplete) | Integration | ✅ 75/75 prior green | ✅ endpoint missing (4 fail) | ✅ 4 passed | ✅ all-in-tolerance CONFORMING / worst-of PENDING / lock (record 409, re-complete 409) / 401+404 | ✅ get_inspection_or_404 extraction, suite green |
+| 4.1 | `tests/test_disposition.py` (TestQueue) | Integration | ✅ 79/79 prior green | ✅ queue route absent | ✅ 4 passed | ✅ grouped/non-empty + conforming empty / newest-first / admin 403 + anonymous 401 | ➖ None needed |
+| 4.2 | `tests/test_disposition.py` (TestDisposition) | Integration | ✅ 4/4 queue tests green | ✅ disposition route absent | ✅ 11 passed | ✅ accept/reject/blank/worst-of/403/immutable/invalid+404+401 | ✅ shared status recompute retained for annulment |
+| 4.3 | `tests/test_disposition.py` (TestAnnulment) | Integration | ✅ 11/11 disposition tests green | ✅ 3 failed (404; route absent) | ✅ 3 passed | ✅ success + blank / role+completion+404 / repeat audit immutability + direct disposition lock | ✅ `_recompute_status` extracted; 14/14 green |
 
 ## Work Unit Evidence
 
@@ -38,6 +44,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: `feat/backend-core` (PR1, me
 | PR1 | `pytest` in `backend/` | 36 passed | uvicorn login flow 200→200→200→401 | revert `feat/backend-core` commits |
 | PR2 | `pytest` in `backend/` | **62 passed** (36 prior + 26 catalog) | N/A — API slice (per work-unit table); behavior fully covered by TestClient integration tests incl. multipart upload + FileResponse round-trip | revert `feat/part-catalog` commits: all changes in `backend/` (+ tasks/progress doc lines) |
 | PR3 | `pytest` in `backend/` | **79 passed** (62 prior + 17 inspection) | N/A — API slice (per work-unit table); TestClient integration covers start→record→complete lifecycle incl. snapshot immutability across characteristic edits | revert `feat/inspection-execution` commits: all changes in `backend/` (+ tasks/progress doc lines) |
+| PR4 | `.venv/bin/python -m pytest tests/test_disposition.py` in `backend/` | **14 passed** (11 prior + 3 annulment) | `.venv/bin/python -m pytest tests/test_disposition.py::TestAnnulment::test_admin_annuls_with_audit_and_record_becomes_terminal` → **1 passed**; TestClient executes the FastAPI+SQLite HTTP lifecycle | revert PR4 commits `8c62f1d`, `aac9d1d`, `e0c8384` plus the PR4 progress-doc commit |
 
 ## Commits
 
@@ -60,12 +67,26 @@ PR3 (`feat/inspection-execution`, off main):
 - `6c7df5a feat(backend): add inspection completion with worst-of status lock` (69 changed lines)
 - docs commit: `docs(backend): record PR3 apply progress`
 
+PR4 (`feat/deviation-disposition`, off updated main):
+- `8c62f1d feat(backend): add grouped pending deviation queue for administrators`
+- `aac9d1d feat(backend): add audited deviation disposition with worst-of status recompute`
+- `e0c8384 feat(backend): add audited inspection annulment`
+- docs commit: `docs(backend): record PR4 apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
 - **PR3a** = commit `40c0448` (start + measurement capture, tasks 3.1–3.2) = **376 lines**, verified 75/75 pytest green at that commit.
 - **PR3b** = commit `6c7df5a` (completion lock, task 3.3) = **69 lines**, stacked on PR3a; 79/79 green.
 Alternatives: maintainer `size:exception` (overage is only 45 lines).
+
+## ⚠️ PR4 review-budget split
+
+PR4 exceeds the 400-line review budget once cumulative progress documentation is included. Clean stacked split:
+- **PR4a** = `8c62f1d` + `aac9d1d` (tasks 4.1–4.2: queue and disposition).
+- **PR4b** = `e0c8384` + the PR4 progress-doc commit (task 4.3: terminal audited annulment), stacked on PR4a.
+
+Both slices retain their tests and stay independently reviewable; final `main..HEAD` counts are recorded in the apply result.
 
 ## Deviations from design
 
@@ -79,5 +100,5 @@ Alternatives: maintainer `size:exception` (overage is only 45 lines).
 
 ## Next steps
 
-- Orchestrator: resolve PR3 budget breach (split PR3a/PR3b at commit boundary vs size:exception), then delivery.
-- PR4: Disposition + annulment API (Phase 4, tasks 4.1–4.3).
+- Orchestrator: deliver PR4 as the documented PR4a → PR4b stacked split; do not collapse it into an over-budget PR.
+- PR5: Report API (Phase 5, tasks 5.1–5.2).
