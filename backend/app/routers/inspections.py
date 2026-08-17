@@ -3,9 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_db, require_role
 from app.models import Inspection, Measurement, Piece, User
-from app.schemas import InspectionOut, InspectionStartIn, MeasurementIn, MeasurementOut
+from app.schemas import (
+    AnnulmentIn, InspectionOut, InspectionStartIn, MeasurementIn, MeasurementOut,
+)
+from app.services import disposition as disposition_service
 from app.services import inspection as service
 
 router = APIRouter(prefix="/api/inspections", tags=["inspections"])
@@ -29,7 +32,10 @@ def inspection_out(db: Session, inspection: Inspection,
         id=inspection.id, part_type_id=piece.part_type_id, serial=piece.serial,
         inspector=db.get(User, inspection.inspector_id).username,
         status=inspection.status, started_at=inspection.started_at,
-        completed_at=inspection.completed_at, characteristic_ids=characteristic_ids,
+        completed_at=inspection.completed_at, annulled_at=inspection.annulled_at,
+        annulled_by=inspection.annulled_by,
+        annulment_reason=inspection.annulment_reason,
+        characteristic_ids=characteristic_ids,
         measurements=rows)
 
 
@@ -70,5 +76,17 @@ def complete(inspection_id: int, db: Session = Depends(get_db),
     try:
         service.complete_inspection(db, inspection)
     except service.InspectionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return inspection_out(db, inspection)
+
+
+@router.post("/{inspection_id}/annul", response_model=InspectionOut)
+def annul(inspection_id: int, payload: AnnulmentIn,
+          db: Session = Depends(get_db),
+          user: User = Depends(require_role("admin"))):
+    inspection = get_inspection_or_404(db, inspection_id)
+    try:
+        disposition_service.annul_inspection(db, inspection, payload.reason, user)
+    except disposition_service.DispositionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return inspection_out(db, inspection)

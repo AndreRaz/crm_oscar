@@ -84,6 +84,11 @@ def measurement_of(client, inspection_id=1, characteristic_id=2):
                 if m["characteristic_id"] == characteristic_id)
 
 
+def annul(client, inspection_id=1, reason="Wrong serial recorded"):
+    return client.post(f"/api/inspections/{inspection_id}/annul",
+                       json={"reason": reason})
+
+
 class TestDisposition:
     def test_accept_with_note_audits_and_recomputes_status(self, db, client):
         seed_pending_deviation(client, db)
@@ -150,3 +155,51 @@ class TestDisposition:
         seed_pending_deviation(client, db)
         assert dispose(client, action="maybe").status_code == 422
         assert dispose(client, measurement_id=99).status_code == 404
+
+
+class TestAnnulment:
+    def test_admin_annuls_with_audit_and_record_becomes_terminal(self, db, client):
+        seed_pending_deviation(client, db)
+        original = measurement_of(client)
+        response = annul(client, reason="  Wrong serial recorded  ")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["annulment_reason"] == "Wrong serial recorded"
+        assert body["annulled_by"] == 1
+        assert body["annulled_at"] is not None
+        assert body["completed_at"] is not None
+        assert client.get("/api/deviations").json()["groups"] == []
+        assert dispose(client, text="Late concession").status_code == 409
+        assert measurement_of(client) == original
+
+        first_audit = (body["annulled_at"], body["annulled_by"], body["annulment_reason"])
+        assert annul(client, reason="Replace audit").status_code == 409
+        stored = client.get("/api/inspections/1").json()
+        assert (stored["annulled_at"], stored["annulled_by"],
+                stored["annulment_reason"]) == first_audit
+
+    def test_blank_reason_returns_422_and_inspection_stays_pending(self, db, client):
+        seed_pending_deviation(client, db)
+        assert annul(client, reason="   ").status_code == 422
+        inspection = client.get("/api/inspections/1").json()
+        assert inspection["annulled_at"] is None
+        assert inspection["annulled_by"] is None
+        assert inspection["annulment_reason"] is None
+        assert len(client.get("/api/deviations").json()["groups"]) == 1
+
+    def test_annulment_is_admin_only_and_requires_completed_inspection(self, db, client):
+        seed_pending_deviation(client, db)
+        client.post("/api/auth/logout")
+        login(client, "raul")
+        assert annul(client).status_code == 403
+        client.post("/api/auth/logout")
+        assert annul(client).status_code == 401
+
+        login(client, "admin")
+        assert annul(client, inspection_id=99).status_code == 404
+        client.post("/api/auth/logout")
+        login(client, "raul")
+        start(client, serial="S-002")
+        client.post("/api/auth/logout")
+        login(client, "admin")
+        assert annul(client, inspection_id=2).status_code == 409
