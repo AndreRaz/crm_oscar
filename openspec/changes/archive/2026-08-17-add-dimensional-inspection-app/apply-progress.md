@@ -158,11 +158,10 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 ## Deviations from design
 
 - PR1: enums in `services/status.py`; deps/main/schemas landed with auth commit (self-consistent commits).
-- PR2: spec text mentions part-type `name`/`description`, but design Data Model (binding, already merged in PR1 schema) defines PartType as code/image_path/active only — followed design. Flagged for spec/specs alignment at archive time.
-- PR2: `PartType.name/description` absent; `PATCH /api/part-types/{id}` accepts `active` only (matches merged model).
+- Remediation supersedes the PR2 deviation: PartType now requires editable `name`/`description`, and uploads validate actual PNG/JPEG signatures.
 - PR2: Image stored as `{part_type_id}{.png|.jpg}` under images dir (one image per part type, overwrite on re-upload); DB stores the file name. `IMAGES_DIR` env override for tests, default `backend/data/images/` per design ADR.
 - PR2: Balloon PATCH not implemented (design lists `.../balloons`, `/api/balloons/{id}`; only DELETE needed by spec scenarios — re-placement = delete + create, both covered by tests).
-- PR3: characteristic selection is validated at start (belongs to part type, no dups) and echoed in the start response, but NOT persisted as a separate table (merged PR1 schema has none per design Data Model). `GET` derives `characteristic_ids` from recorded measurements; recording any characteristic of the inspected part type is allowed (unselected = simply not measured, per spec skip rule). Flagged for archive-time review.
+- Remediation supersedes the PR3 deviation: selected characteristic IDs are persisted and enforced for every measurement.
 - PR3: status codes not pinned by spec: inactive part type → 409 (state conflict), foreign characteristic → 422, locked-inspection edits → 409, duplicate serial → 409 (matches PR2 duplicate precedent).
 - PR7: the typed client is `src/api/client.ts` rather than the planned `.js`; Recharts is installed but intentionally unused until Phase 8.
 
@@ -174,3 +173,21 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 ## Next steps
 
 - All 25 tasks are complete; run `sdd-verify`, then archive the change after verification succeeds.
+## Bounded unmanaged remediation — 2026-08-17
+- TDD: RED 3 backend/4 frontend failures; GREEN 51 focused, 109 backend, 22 frontend; build passed.
+- Runtime: required/editable part fields, image/tolerance/finite validation, persisted selection, ownership, history/report access, and referenced-delete rejection all passed.
+- Rollback: revert the 20 remediation code/test/dependency files only; visual catalog grid/filter changes and `verify-report.md` remain independent.
+
+## Final bounded unmanaged remediation — 2026-08-17
+- Binding: token `sha256:a0036ed17592b2a8eb1de05d3820619d08d62f53515e2e66d23c7bfd87779263`; lineage `sha256:5353eca421eaa3c2eba01eca3268d0b7f1ba219b4fbc28e7f0eaa65a56ea4a2a`; generation 15; fix batch 16; failed evidence `sha256:8772c14a182d03b00473a5e86e0bd3246e1ed3fea8354ea76b5152c6440e5ef1`.
+### TDD Cycle Evidence — Final remediation
+|Task|Test|Safety|RED|GREEN|TRIANGULATE|REFACTOR|
+|---|---|---|---|---|---|---|
+|Finite catalog numbers|`test_remediation.py` integration|29 passed|8 cases failed|37 focused; 117 full|create+patch; NaN/±Infinity; four fields|shared service guard; green|
+|Referenced removal|`test_remediation.py` integration|29 passed|DELETE 409|37 focused; 117 full|referenced soft-delete + existing unreferenced hard-delete|active filter reused; green|
+### Work Unit Evidence
+|Evidence|Result|
+|---|---|
+|Focused test|`.venv/bin/python -m pytest tests/test_remediation.py tests/test_catalog.py -q` → 37 passed|
+|Runtime harness|Inline Uvicorn/temp SQLite → non-finite 422; DELETE 204; catalog `[B]`; future start 422; historical PDF 200 `%PDF`|
+|Rollback boundary|Exactly 50 lines: revert only final-remediation hunks in five backend production files, `backend/tests/test_remediation.py`, and both evidence appendices|

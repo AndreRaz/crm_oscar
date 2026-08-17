@@ -53,7 +53,7 @@ function Users() {
 
 type Page = "users" | "catalog" | "deviations" | "stability" | "inspection";
 const tabs: Record<Role, [Page, string][]> = {
-  admin: [["users", "Usuarios"], ["catalog", "Catálogo"], ["deviations", "Desviaciones"], ["stability", "Estabilidad"]],
+  admin: [["users", "Usuarios"], ["catalog", "Catálogo"], ["inspection", "Inspección"], ["deviations", "Desviaciones"], ["stability", "Estabilidad"]],
   inspector: [["catalog", "Catálogo"], ["inspection", "Inspección"]],
 };
 
@@ -65,6 +65,6 @@ export default function App() {
   if (user === null) return <Login onLogin={enter} />;
   return <><header><div><strong>Control dimensional</strong><small>{user.username}</small></div><button onClick={async () => { await api.auth.logout(); setUser(null); }}>Cerrar sesión</button></header>
     <nav aria-label="Navegación principal">{tabs[user.role].map(([key, label]) => <button role="tab" aria-selected={page === key} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav>
-    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection /> : page === "deviations" ? <Deviations /> : <Stability />}</main>
+    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection role={user.role} /> : page === "deviations" ? <Deviations /> : <Stability />}</main>
   </>;
 }

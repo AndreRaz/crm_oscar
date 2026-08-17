@@ -27,7 +27,7 @@ def inspection_out(db: Session, inspection: Inspection,
     rows = db.scalars(select(Measurement).where(
         Measurement.inspection_id == inspection.id).order_by(Measurement.id)).all()
     if characteristic_ids is None:
-        characteristic_ids = sorted({m.characteristic_id for m in rows})
+        characteristic_ids = list(map(int, inspection.selected_characteristic_ids.split(",")))
     return InspectionOut(
         id=inspection.id, part_type_id=piece.part_type_id, serial=piece.serial,
         inspector=db.get(User, inspection.inspector_id).username,
@@ -37,6 +37,19 @@ def inspection_out(db: Session, inspection: Inspection,
         annulment_reason=inspection.annulment_reason,
         characteristic_ids=characteristic_ids,
         measurements=rows)
+
+
+def authorize(inspection: Inspection, user: User) -> None:
+    if user.role != "admin" and inspection.inspector_id != user.id:
+        raise HTTPException(status_code=403, detail="Inspection belongs to another inspector")
+
+
+@router.get("", response_model=list[InspectionOut])
+def listing(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    query = select(Inspection).order_by(Inspection.id.desc())
+    if user.role != "admin":
+        query = query.where(Inspection.inspector_id == user.id)
+    return [inspection_out(db, item) for item in db.scalars(query).all()]
 
 
 @router.post("", response_model=InspectionOut, status_code=201)
@@ -53,15 +66,17 @@ def start(payload: InspectionStartIn, db: Session = Depends(get_db),
 
 @router.get("/{inspection_id}", response_model=InspectionOut)
 def detail(inspection_id: int, db: Session = Depends(get_db),
-           _: User = Depends(get_current_user)):
-    return inspection_out(db, get_inspection_or_404(db, inspection_id))
+           user: User = Depends(get_current_user)):
+    inspection = get_inspection_or_404(db, inspection_id); authorize(inspection, user)
+    return inspection_out(db, inspection)
 
 
 @router.post("/{inspection_id}/measurements", response_model=MeasurementOut, status_code=201)
 def add_measurement(inspection_id: int, payload: MeasurementIn,
                     db: Session = Depends(get_db),
-                    _: User = Depends(get_current_user)):
+                     user: User = Depends(get_current_user)):
     inspection = get_inspection_or_404(db, inspection_id)
+    authorize(inspection, user)
     try:
         return service.record_measurement(db, inspection,
                                           payload.characteristic_id, payload.actual_value)
@@ -71,8 +86,9 @@ def add_measurement(inspection_id: int, payload: MeasurementIn,
 
 @router.post("/{inspection_id}/complete", response_model=InspectionOut)
 def complete(inspection_id: int, db: Session = Depends(get_db),
-             _: User = Depends(get_current_user)):
+              user: User = Depends(get_current_user)):
     inspection = get_inspection_or_404(db, inspection_id)
+    authorize(inspection, user)
     try:
         service.complete_inspection(db, inspection)
     except service.InspectionError as exc:

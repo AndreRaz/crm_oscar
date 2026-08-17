@@ -29,15 +29,21 @@ class UserPatchIn(BaseModel):
 
 class PartTypeIn(BaseModel):
     code: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=500)
 
 
 class PartTypePatchIn(BaseModel):
     active: bool | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 class PartTypeOut(BaseModel):
     id: int
     code: str
+    name: str
+    description: str
     image_path: str | None
     active: bool
 

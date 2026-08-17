@@ -1,6 +1,6 @@
 export type Role = "admin" | "inspector";
 export type User = { id: number; username: string; role: Role; active: boolean };
-export type PartType = { id: number; code: string; image_path: string | null; active: boolean };
+export type PartType = { id: number; code: string; name: string; description: string; image_path: string | null; active: boolean };
 export type Characteristic = {
   id: number; part_type_id: number; code: string; name: string | null; unit: string | null;
   tol_type: "SYMMETRIC" | "LIMITS"; nominal: number | null; tol_plus: number | null;
@@ -67,8 +67,8 @@ export const api = {
   },
   catalog: {
     list: () => request<PartType[]>("/api/part-types"),
-    createPart: (input: { code: string }) => request<PartType>("/api/part-types", json("POST", input)),
-    patchPart: (id: number, input: { active: boolean }) => request<PartType>(`/api/part-types/${id}`, json("PATCH", input)),
+    createPart: (input: Pick<PartType, "code" | "name" | "description">) => request<PartType>("/api/part-types", json("POST", input)),
+    patchPart: (id: number, input: Partial<Pick<PartType, "name" | "description" | "active">>) => request<PartType>(`/api/part-types/${id}`, json("PATCH", input)),
     uploadImage: (id: number, file: File) => { const body = new FormData(); body.append("file", file); return request<PartType>(`/api/part-types/${id}/image`, { method: "POST", body }); },
     imageUrl: (id: number) => `/api/part-types/${id}/image`,
     characteristics: (id: number) => request<Characteristic[]>(`/api/part-types/${id}/characteristics`),
@@ -80,6 +80,7 @@ export const api = {
     deleteBalloon: (id: number) => request<void>(`/api/balloons/${id}`, { method: "DELETE" }),
   },
   inspections: {
+    list: () => request<Inspection[]>("/api/inspections"),
     start: (input: { part_type_id: number; serial: string; characteristic_ids: number[] }) => request<Inspection>("/api/inspections", json("POST", input)),
     record: (id: number, input: { characteristic_id: number; actual_value: number }) => request<Measurement>(`/api/inspections/${id}/measurements`, json("POST", input)),
     complete: (id: number) => request<Inspection>(`/api/inspections/${id}/complete`, json("POST")),

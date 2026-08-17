@@ -45,6 +45,8 @@ class PartType(Base):
     __tablename__ = "part_types"
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(40), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(String(500))
     image_path: Mapped[str | None] = mapped_column(String(255), default=None)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -55,7 +57,7 @@ class Characteristic(Base):
     __table_args__ = (
         UniqueConstraint("part_type_id", "code"),
         CheckConstraint(
-            "(tol_type = 'SYMMETRIC' AND nominal IS NOT NULL AND tol_plus IS NOT NULL) "
+            "(tol_type = 'SYMMETRIC' AND nominal IS NOT NULL AND tol_plus IS NOT NULL AND tol_plus >= 0) "
             "OR (tol_type = 'LIMITS' AND (min_limit IS NOT NULL OR max_limit IS NOT NULL) "
             "AND (min_limit IS NULL OR max_limit IS NULL OR min_limit <= max_limit))",
             name="ck_characteristic_tolerance",
@@ -72,6 +74,7 @@ class Characteristic(Base):
     min_limit: Mapped[float | None] = mapped_column(Float, default=None)
     max_limit: Mapped[float | None] = mapped_column(Float, default=None)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Balloon(Base):
@@ -102,6 +105,7 @@ class Inspection(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     piece_id: Mapped[int] = mapped_column(ForeignKey("pieces.id"), index=True)
     inspector_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    selected_characteristic_ids: Mapped[str] = mapped_column(String(1000))
     status: Mapped[InspectionStatus] = mapped_column(
         Enum(InspectionStatus, name="inspection_status"))
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

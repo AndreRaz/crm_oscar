@@ -19,7 +19,7 @@ def db():
 
 
 def add_part_type(db, code="PT-1"):
-    pt = PartType(code=code)
+    pt = PartType(code=code, name=code, description="Test")
     db.add(pt)
     db.commit()
     return pt
@@ -119,7 +119,7 @@ class TestMeasurementConstraint:
         piece = Piece(part_type_id=pt.id, serial="S1")
         db.add(piece)
         db.commit()
-        insp = Inspection(piece_id=piece.id, inspector_id=user.id, status="PENDING")
+        insp = Inspection(piece_id=piece.id, inspector_id=user.id, selected_characteristic_ids=str(ch.id), status="PENDING")
         db.add(insp)
         db.commit()
         db.add(Measurement(inspection_id=insp.id, characteristic_id=ch.id,

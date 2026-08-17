@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api, Balloon, Characteristic, Inspection as InspectionData, Measurement, PartType } from "./api/client";
+import { api, Balloon, Characteristic, Inspection as InspectionData, Measurement, PartType, Role } from "./api/client";
 import ReportDownload from "./ReportDownload";
 
 const withUnit = (value: number | null, unit: string | null) => `${value ?? "—"}${unit ? ` ${unit}` : ""}`;
 
-export default function Inspection() {
+export default function Inspection({ role = "inspector" }: { role?: Role }) {
   const [parts, setParts] = useState<PartType[]>();
   const [part, setPart] = useState<PartType>();
   const [characteristics, setCharacteristics] = useState<Characteristic[]>([]);
@@ -14,7 +14,9 @@ export default function Inspection() {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [index, setIndex] = useState(0);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<InspectionData[]>([]);
   useEffect(() => { api.catalog.list().then((items) => setParts(items.filter((item) => item.active))).catch(() => setError("No se pudieron cargar los tipos de pieza.")); }, []);
+  useEffect(() => { api.inspections.list().then(setHistory).catch(() => setError("No se pudo cargar el historial.")); }, []);
 
   async function choosePart(id: number) {
     const next = parts?.find((item) => item.id === id); setPart(next); setSelected([]); setError("");
@@ -53,6 +55,7 @@ export default function Inspection() {
   </section>;
 
   return <section><h2>Inspección</h2>{error && <p role="alert">{error}</p>}
+    {history.some((item) => item.completed_at) && <ul className="list" aria-label="Inspecciones completadas">{history.filter((item) => item.completed_at).map((item) => <li key={item.id}><span>{item.serial} · {item.status}</span><ReportDownload inspectionId={item.id} label={`Descargar informe de ${item.serial}`} onError={setError} />{role === "admin" && <button onClick={async () => { const reason = prompt("Motivo de anulación"); if (reason) { await api.inspections.annul(item.id, reason); setHistory((rows) => rows.filter((row) => row.id !== item.id)); } }}>Anular {item.serial}</button>}</li>)}</ul>}
     {!inspection ? <form onSubmit={start} className="card form-grid">
       <label>Tipo de pieza activo<select value={part?.id || ""} onChange={(event) => choosePart(Number(event.target.value))} required><option value="">Selecciona</option>{parts?.map((item) => <option key={item.id} value={item.id}>{item.code}</option>)}</select></label>
       <label>Número de serie<input name="serial" required /></label>

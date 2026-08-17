@@ -1,4 +1,4 @@
-import { FormEvent, MouseEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import { api, Balloon, Characteristic, CharacteristicInput, PartType, Role } from "./api/client";
 
 const numberValue = (data: FormData, key: string) => {
@@ -15,7 +15,11 @@ export default function Catalog({ role }: { role: Role }) {
   const [format, setFormat] = useState<"SYMMETRIC" | "LIMITS">("SYMMETRIC");
   const [point, setPoint] = useState<{ x: number; y: number }>();
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState("");
+  const [creating, setCreating] = useState(false);
+  const createCode = useRef<HTMLInputElement>(null);
   useEffect(() => { api.catalog.list().then(setParts).catch(() => setError("No se pudo cargar el catálogo.")); }, []);
+  useEffect(() => { if (creating) createCode.current?.focus(); }, [creating]);
 
   async function open(selected: PartType) {
     setPart(selected); setEditing(undefined); setPoint(undefined); setError("");
@@ -23,12 +27,17 @@ export default function Catalog({ role }: { role: Role }) {
     catch { setError("No se pudo cargar el detalle del tipo de pieza."); }
   }
   async function createPart(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const code = String(new FormData(form).get("code"));
-    try { const created = await api.catalog.createPart({ code }); setParts((current) => [...(current || []), created]); form.reset(); }
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    try { const created = await api.catalog.createPart({ code: String(data.get("code")), name: String(data.get("name")), description: String(data.get("description")) }); setParts((current) => [...(current || []), created]); form.reset(); setCreating(false); }
     catch { setError("No se pudo crear el tipo de pieza."); }
   }
   async function togglePart() {
     if (!part) return; try { const updated = await api.catalog.patchPart(part.id, { active: !part.active }); setPart(updated); setParts((items) => items?.map((item) => item.id === updated.id ? updated : item)); }
+    catch { setError("No se pudo actualizar el tipo de pieza."); }
+  }
+  async function savePart(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!part) return; const data = new FormData(event.currentTarget);
+    try { const updated = await api.catalog.patchPart(part.id, { name: String(data.get("name")), description: String(data.get("description")) }); setPart(updated); setParts((items) => items?.map((item) => item.id === updated.id ? updated : item)); }
     catch { setError("No se pudo actualizar el tipo de pieza."); }
   }
   async function upload(file?: File) {
@@ -66,10 +75,21 @@ export default function Catalog({ role }: { role: Role }) {
   }
   async function removeBalloon(id: number) { try { await api.catalog.deleteBalloon(id); setBalloons((items) => items.filter((item) => item.id !== id)); } catch { setError("No se pudo eliminar el globo."); } }
 
+  const filteredParts = parts?.filter((item) => String(item.id).includes(filter.trim()));
+
   return <section><h2>Catálogo</h2>{error && <p role="alert">{error}</p>}
-    {admin && <form onSubmit={createPart} className="row card"><label>Código del nuevo tipo<input name="code" required /></label><button>Crear tipo</button></form>}
-    {!parts ? <p>Cargando catálogo…</p> : <ul className="list">{parts.map((item) => <li key={item.id}><span><strong>{item.code}</strong> · {item.active ? "Activo" : "Inactivo"}</span><button aria-label={`Ver ${item.code}`} onClick={() => open(item)}>Ver características</button></li>)}</ul>}
+    <label className="catalog-filter">Buscar por ID<input value={filter} onChange={(event) => setFilter(event.target.value)} inputMode="numeric" /></label>
+    {!parts ? <p>Cargando catálogo…</p> : <div className="catalog-grid">
+      {admin && <button className="catalog-card add-part-card" onClick={() => setCreating(true)}><span aria-hidden="true">+</span><strong>Agregar pieza</strong></button>}
+      {filteredParts?.map((item) => <button className="catalog-card part-card" aria-label={`Ver ${item.code}`} onClick={() => open(item)} key={item.id}>
+        {item.image_path ? <img src={api.catalog.imageUrl(item.id)} alt={`Imagen de ${item.code}`} /> : <span className="part-image-fallback" role="img" aria-label={`Sin imagen para ${item.code}`}>Sin imagen</span>}
+        <span className="part-card-body"><strong>{item.code}</strong><span>ID {item.id}</span><span className={item.active ? "status-active" : "status-inactive"}>{item.active ? "Activo" : "Inactivo"}</span></span>
+      </button>)}
+      {!filteredParts?.length && <p className="catalog-empty">No se encontraron piezas para ese ID.</p>}
+    </div>}
+    {admin && creating && <form onSubmit={createPart} className="row card create-part-form"><label>Código del nuevo tipo<input ref={createCode} name="code" required /></label><label>Nombre del nuevo tipo<input name="name" required /></label><label>Descripción del nuevo tipo<textarea name="description" required /></label><button>Crear tipo</button><button type="button" onClick={() => setCreating(false)}>Cancelar</button></form>}
     {part && <div className="catalog-detail"><div className="row"><h3>{part.code}</h3>{admin && <button onClick={togglePart}>{part.active ? "Desactivar tipo" : "Activar tipo"}</button>}</div>
+      {admin ? <form onSubmit={savePart} className="row"><label>Nombre del tipo<input name="name" defaultValue={part.name} required /></label><label>Descripción del tipo<textarea name="description" defaultValue={part.description} required /></label><button>Guardar tipo</button></form> : <><p>{part.name}</p><p>{part.description}</p></>}
       {admin && <label>Imagen de la pieza<input type="file" accept="image/png,image/jpeg" onChange={(event) => upload(event.target.files?.[0])} /></label>}
       {part.image_path && <div className="image-map"><img src={api.catalog.imageUrl(part.id)} alt={`Plano de ${part.code}`} onClick={choosePoint} />{balloons.map((balloon) => <span className="balloon" style={{ left: `${balloon.x * 100}%`, top: `${balloon.y * 100}%` }} aria-label={`Globo ${balloon.number}: ${characteristics.find((item) => item.id === balloon.characteristic_id)?.code || "Sin característica"}`} key={balloon.id}>{balloon.number}{admin && <button aria-label={`Eliminar globo ${balloon.number}`} onClick={() => removeBalloon(balloon.id)}>×</button>}</span>)}</div>}
       <h3>Características</h3>{characteristics.length ? <ul className="list">{characteristics.map((item) => <li key={item.id}><span><strong>{item.code}</strong> — {item.name || "Sin nombre"}{item.unit ? ` (${item.unit})` : ""}</span>{admin && <><button aria-label={`Editar ${item.code}`} onClick={() => edit(item)}>Editar</button><button aria-label={`Eliminar ${item.code}`} onClick={() => removeCharacteristic(item.id)}>Eliminar</button></>}</li>)}</ul> : <p>Este tipo no tiene características.</p>}

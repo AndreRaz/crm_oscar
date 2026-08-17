@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
   },
   deviations: { list: vi.fn(), dispose: vi.fn() },
   stability: { analysis: vi.fn() },
-  inspections: { detail: vi.fn(), annul: vi.fn(), report: vi.fn() },
+  inspections: { list: vi.fn(), detail: vi.fn(), annul: vi.fn(), report: vi.fn() },
 }));
 vi.mock("./api/client", () => ({ api }));
 
@@ -25,6 +25,7 @@ describe("frontend shell", () => {
     vi.clearAllMocks(); api.users.list.mockResolvedValue([]); api.catalog.list.mockResolvedValue([]);
     api.catalog.characteristics.mockResolvedValue([]); api.catalog.balloons.mockResolvedValue([]);
     api.deviations.list.mockResolvedValue({ groups: [] });
+    api.inspections.list.mockResolvedValue([]);
   });
 
   it("shows loading, login errors, then opens the administrator shell and logs out", async () => {
@@ -39,13 +40,27 @@ describe("frontend shell", () => {
     await user.click(screen.getByRole("button", { name: "Ingresar" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("No fue posible iniciar sesión");
     await user.click(screen.getByRole("button", { name: "Ingresar" }));
-    expect(await screen.findByRole("navigation")).toHaveTextContent("UsuariosCatálogoDesviacionesEstabilidad");
+    expect(await screen.findByRole("navigation")).toHaveTextContent("UsuariosCatálogoInspecciónDesviacionesEstabilidad");
     await user.click(screen.getByRole("tab", { name: "Estabilidad" }));
     expect(await screen.findByText("Selecciona un tipo de pieza y una característica.")).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Desviaciones" }));
     expect(await screen.findByText("No hay desviaciones pendientes.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
     expect(await screen.findByRole("heading", { name: "Control dimensional" })).toBeInTheDocument();
+  });
+
+  it.each([admin, inspector])("exposes completed reports to %s and annulment to admins", async (account) => {
+    api.auth.me.mockResolvedValue(account); api.inspections.list.mockResolvedValue([{ id: 20, serial: "S-20", completed_at: "2026-08-17", status: "CONFORMING" }]);
+    api.inspections.report.mockResolvedValue(new Blob(["pdf"])); api.inspections.annul.mockResolvedValue({});
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:report"), revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.spyOn(window, "prompt").mockReturnValue("Duplicada");
+    const user = userEvent.setup(); render(<App />);
+    await user.click(await screen.findByRole("tab", { name: "Inspección" }));
+    await user.click(await screen.findByRole("button", { name: "Descargar informe de S-20" }));
+    expect(api.inspections.report).toHaveBeenCalledWith(20);
+    if (account.role === "admin") { await user.click(screen.getByRole("button", { name: "Anular S-20" })); expect(api.inspections.annul).toHaveBeenCalledWith(20, "Duplicada"); }
+    else expect(screen.queryByRole("button", { name: "Anular S-20" })).not.toBeInTheDocument();
   });
 
   it("lets an administrator create, deactivate, and reset a user", async () => {
@@ -75,12 +90,69 @@ describe("frontend shell", () => {
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByText("PT-100")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Agregar pieza" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Ver PT-100" }));
     expect(await screen.findByText(/Longitud/)).toHaveTextContent("Longitud (mm)");
     expect(screen.queryByRole("tab", { name: "Usuarios" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Crear tipo|Editar|Desactivar tipo/)).not.toBeInTheDocument();
     await waitFor(() => expect(api.catalog.characteristics).toHaveBeenCalledWith(7));
     expect(screen.getByLabelText("Globo 1: L1")).toBeInTheDocument();
+  });
+
+  it("puts the administrator add card first and closes the focused form after creation", async () => {
+    api.auth.me.mockResolvedValue(admin);
+    api.catalog.list.mockResolvedValue([{ id: 7, code: "PT-100", name: "Pieza", description: "Inicial", image_path: null, active: true }]);
+    api.catalog.createPart.mockResolvedValue({ id: 8, code: "PT-200", name: "Bomba", description: "Nueva", image_path: null, active: true });
+    api.catalog.patchPart.mockResolvedValue({ id: 7, code: "PT-100", name: "Válvula", description: "Editada", image_path: null, active: true });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("tab", { name: "Catálogo" }));
+    const addCard = screen.getByRole("button", { name: "Agregar pieza" });
+    expect(addCard.parentElement?.firstElementChild).toBe(addCard);
+    await user.type(screen.getByLabelText("Buscar por ID"), "999");
+    expect(screen.getByText("No se encontraron piezas para ese ID.")).toBeInTheDocument();
+    expect(addCard.parentElement?.firstElementChild).toBe(addCard);
+    await user.clear(screen.getByLabelText("Buscar por ID"));
+    expect(screen.queryByLabelText("Código del nuevo tipo")).not.toBeInTheDocument();
+    await user.click(addCard);
+    const code = screen.getByLabelText("Código del nuevo tipo");
+    expect(code).toHaveFocus();
+    await user.type(code, "PT-200");
+    await user.type(screen.getByLabelText("Nombre del nuevo tipo"), "Bomba");
+    await user.type(screen.getByLabelText("Descripción del nuevo tipo"), "Nueva");
+    await user.click(screen.getByRole("button", { name: "Crear tipo" }));
+    expect(api.catalog.createPart).toHaveBeenCalledWith({ code: "PT-200", name: "Bomba", description: "Nueva" });
+    expect(screen.queryByLabelText("Código del nuevo tipo")).not.toBeInTheDocument();
+    expect(addCard.parentElement?.firstElementChild).toBe(addCard);
+    await user.click(screen.getByRole("button", { name: "Ver PT-100" }));
+    await user.clear(screen.getByLabelText("Nombre del tipo")); await user.type(screen.getByLabelText("Nombre del tipo"), "Válvula");
+    await user.clear(screen.getByLabelText("Descripción del tipo")); await user.type(screen.getByLabelText("Descripción del tipo"), "Editada");
+    await user.click(screen.getByRole("button", { name: "Guardar tipo" }));
+    expect(api.catalog.patchPart).toHaveBeenCalledWith(7, { name: "Válvula", description: "Editada" });
+  });
+
+  it("shows image-first cards, filters by partial numeric ID, and opens details", async () => {
+    api.auth.me.mockResolvedValue(inspector);
+    api.catalog.list.mockResolvedValue([
+      { id: 17, code: "PT-IMG", image_path: "17.png", active: true },
+      { id: 28, code: "PT-NOIMG", image_path: null, active: false },
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByAltText("Imagen de PT-IMG")).toHaveAttribute("src", "/api/part-types/17/image");
+    expect(screen.getByLabelText("Sin imagen para PT-NOIMG")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver PT-IMG" })).toHaveTextContent("PT-IMGID 17Activo");
+    expect(screen.getByRole("button", { name: "Ver PT-NOIMG" })).toHaveTextContent("PT-NOIMGID 28Inactivo");
+    await user.type(screen.getByLabelText("Buscar por ID"), "7");
+    expect(screen.getByRole("button", { name: "Ver PT-IMG" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver PT-NOIMG" })).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Buscar por ID"));
+    await user.type(screen.getByLabelText("Buscar por ID"), "999");
+    expect(screen.getByText("No se encontraron piezas para ese ID.")).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Buscar por ID"));
+    await user.click(screen.getByRole("button", { name: "Ver PT-IMG" }));
+    await waitFor(() => expect(api.catalog.characteristics).toHaveBeenCalledWith(17));
+    expect(screen.getByRole("heading", { name: "PT-IMG" })).toBeInTheDocument();
   });
 
   it("lets an administrator manage both tolerance formats, upload an image, and place a normalized balloon", async () => {
@@ -94,9 +166,11 @@ describe("frontend shell", () => {
     api.catalog.createBalloon.mockResolvedValue({ id: 12, part_type_id: 7, number: 3, characteristic_id: 8, x: .5, y: .5 });
     const user = userEvent.setup(); render(<App />);
     await user.click(await screen.findByRole("tab", { name: "Catálogo" }));
+    await user.click(screen.getByRole("button", { name: "Agregar pieza" }));
     await user.type(screen.getByLabelText("Código del nuevo tipo"), "PT-200");
+    await user.type(screen.getByLabelText("Nombre del nuevo tipo"), "Pieza"); await user.type(screen.getByLabelText("Descripción del nuevo tipo"), "Test");
     await user.click(screen.getByRole("button", { name: "Crear tipo" }));
-    expect(api.catalog.createPart).toHaveBeenCalledWith({ code: "PT-200" });
+    expect(api.catalog.createPart).toHaveBeenCalledWith({ code: "PT-200", name: "Pieza", description: "Test" });
     await user.click(screen.getByRole("button", { name: "Ver PT-100" }));
     const file = new File(["image"], "pieza.png", { type: "image/png" });
     await user.upload(screen.getByLabelText("Imagen de la pieza"), file);
