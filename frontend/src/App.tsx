@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api, Characteristic, PartType, Role, User } from "./api/client";
+import { api, Role, User } from "./api/client";
+import Catalog from "./Catalog";
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [error, setError] = useState("");
@@ -47,15 +48,6 @@ function Users() {
   </section>;
 }
 
-function Catalog() {
-  const [parts, setParts] = useState<PartType[]>(); const [details, setDetails] = useState<Characteristic[]>(); const [error, setError] = useState("");
-  useEffect(() => { api.catalog.list().then(setParts).catch(() => setError("No se pudo cargar el catálogo.")); }, []);
-  async function open(part: PartType) { setDetails(undefined); setError(""); try { setDetails(await api.catalog.characteristics(part.id)); } catch { setError("No se pudieron cargar las características."); } }
-  return <section><h2>Catálogo</h2>{error && <p role="alert">{error}</p>}{!parts ? <p>Cargando catálogo…</p> : <ul className="list">{parts.map((part) => <li key={part.id}><span><strong>{part.code}</strong> · {part.active ? "Activo" : "Inactivo"}</span><button aria-label={`Ver ${part.code}`} onClick={() => open(part)}>Ver características</button></li>)}</ul>}
-    {details && <div className="card"><h3>Características</h3>{details.length ? <ul>{details.map((item) => <li key={item.id}><strong>{item.code}</strong> — {item.name || "Sin nombre"}{item.unit ? ` (${item.unit})` : ""}</li>)}</ul> : <p>Este tipo no tiene características.</p>}</div>}
-  </section>;
-}
-
 type Page = "users" | "catalog" | "deviations" | "stability" | "inspection";
 const tabs: Record<Role, [Page, string][]> = {
   admin: [["users", "Usuarios"], ["catalog", "Catálogo"], ["deviations", "Desviaciones"], ["stability", "Estabilidad"]],
@@ -70,6 +62,6 @@ export default function App() {
   if (user === null) return <Login onLogin={enter} />;
   return <><header><div><strong>Control dimensional</strong><small>{user.username}</small></div><button onClick={async () => { await api.auth.logout(); setUser(null); }}>Cerrar sesión</button></header>
     <nav aria-label="Navegación principal">{tabs[user.role].map(([key, label]) => <button role="tab" aria-selected={page === key} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav>
-    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog /> : <section><h2>{tabs[user.role].find(([key]) => key === page)?.[1]}</h2><p>Disponible en la siguiente fase.</p></section>}</main>
+    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : <section><h2>{tabs[user.role].find(([key]) => key === page)?.[1]}</h2><p>Disponible en la siguiente fase.</p></section>}</main>
   </>;
 }
