@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, Balloon, Characteristic, Inspection as InspectionData, Measurement, PartType } from "./api/client";
+import ReportDownload from "./ReportDownload";
 
 const withUnit = (value: number | null, unit: string | null) => `${value ?? "—"}${unit ? ` ${unit}` : ""}`;
 
@@ -47,7 +48,9 @@ export default function Inspection() {
     try { setInspection(await api.inspections.complete(inspection.id)); }
     catch { setError("No se pudo completar la inspección."); }
   }
-  if (inspection?.completed_at) return <section><h2>Inspección completada</h2><p className="final-status">Estado final: {inspection.status}</p></section>;
+  if (inspection?.completed_at) return <section><h2>Inspección completada</h2><p className="final-status">Estado final: {inspection.status}</p>
+    {error && <p role="alert">{error}</p>}<ReportDownload inspectionId={inspection.id} label="Descargar mi informe" onError={setError} />
+  </section>;
 
   return <section><h2>Inspección</h2>{error && <p role="alert">{error}</p>}
     {!inspection ? <form onSubmit={start} className="card form-grid">

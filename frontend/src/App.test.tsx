@@ -11,6 +11,8 @@ const api = vi.hoisted(() => ({
     characteristics: vi.fn(), createCharacteristic: vi.fn(), patchCharacteristic: vi.fn(), deleteCharacteristic: vi.fn(),
     balloons: vi.fn(), createBalloon: vi.fn(), deleteBalloon: vi.fn(), imageUrl: vi.fn((id) => `/api/part-types/${id}/image`),
   },
+  deviations: { list: vi.fn(), dispose: vi.fn() },
+  inspections: { detail: vi.fn(), annul: vi.fn(), report: vi.fn() },
 }));
 vi.mock("./api/client", () => ({ api }));
 
@@ -21,6 +23,7 @@ describe("frontend shell", () => {
   beforeEach(() => {
     vi.clearAllMocks(); api.users.list.mockResolvedValue([]); api.catalog.list.mockResolvedValue([]);
     api.catalog.characteristics.mockResolvedValue([]); api.catalog.balloons.mockResolvedValue([]);
+    api.deviations.list.mockResolvedValue({ groups: [] });
   });
 
   it("shows loading, login errors, then opens the administrator shell and logs out", async () => {
@@ -36,6 +39,8 @@ describe("frontend shell", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No fue posible iniciar sesión");
     await user.click(screen.getByRole("button", { name: "Ingresar" }));
     expect(await screen.findByRole("navigation")).toHaveTextContent("UsuariosCatálogoDesviacionesEstabilidad");
+    await user.click(screen.getByRole("tab", { name: "Desviaciones" }));
+    expect(await screen.findByText("No hay desviaciones pendientes.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
     expect(await screen.findByRole("heading", { name: "Control dimensional" })).toBeInTheDocument();
   });

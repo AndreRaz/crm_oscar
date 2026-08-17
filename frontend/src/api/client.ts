@@ -10,9 +10,12 @@ export type CharacteristicInput = Omit<Characteristic, "id" | "part_type_id">;
 export type Balloon = { id: number; part_type_id: number; number: number; characteristic_id: number; x: number; y: number };
 export type BalloonInput = Omit<Balloon, "id" | "part_type_id">;
 export type Measurement = {
-  id: number; characteristic_id: number; actual_value: number; status: "IN_TOLERANCE" | "PENDING";
+  id: number; characteristic_id: number; actual_value: number; status: "IN_TOLERANCE" | "PENDING" | "DEVIATION_ACCEPTED" | "REJECTED";
   nominal_snapshot?: number | null; lower_limit_snapshot?: number | null; upper_limit_snapshot?: number | null;
+  deviation?: number | null; disposition_note?: string | null;
 };
+export type QueueInspection = { id: number; part_type_code: string; serial: string; inspector: string; completed_at: string; status: Inspection["status"] };
+export type DeviationGroup = { inspection: QueueInspection; measurements: Measurement[] };
 export type Inspection = {
   id: number; part_type_id: number; serial: string; inspector: string;
   status: "CONFORMING" | "PENDING" | "ACCEPTED_WITH_DEVIATIONS" | "REJECTED";
@@ -30,6 +33,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error(body.detail || `Error HTTP ${response.status}`);
   }
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
+}
+
+async function download(path: string): Promise<Blob> {
+  const response = await fetch(path, { credentials: "include" });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Error HTTP ${response.status}`);
+  }
+  return response.blob();
 }
 
 const json = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -63,5 +75,12 @@ export const api = {
     start: (input: { part_type_id: number; serial: string; characteristic_ids: number[] }) => request<Inspection>("/api/inspections", json("POST", input)),
     record: (id: number, input: { characteristic_id: number; actual_value: number }) => request<Measurement>(`/api/inspections/${id}/measurements`, json("POST", input)),
     complete: (id: number) => request<Inspection>(`/api/inspections/${id}/complete`, json("POST")),
+    detail: (id: number) => request<Inspection>(`/api/inspections/${id}`),
+    annul: (id: number, reason: string) => request<Inspection>(`/api/inspections/${id}/annul`, json("POST", { reason })),
+    report: (id: number) => download(`/api/inspections/${id}/report.pdf`),
+  },
+  deviations: {
+    list: () => request<{ groups: DeviationGroup[] }>("/api/deviations"),
+    dispose: (id: number, input: { action: "accept" | "reject"; text: string }) => request<Measurement>(`/api/measurements/${id}/disposition`, json("POST", input)),
   },
 };
