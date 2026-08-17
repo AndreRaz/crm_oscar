@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR5 merged; PR6 is `feat/stability-analysis` off updated main.
+Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR6 merged; PR7 is `feat/frontend-shell` off updated main.
 
 ## Tasks (cumulative)
 
@@ -21,7 +21,9 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR5 merged; PR6 is `fe
 - [x] 5.2 authorized on-demand WeasyPrint PDF: admin-any, inspector-own, other 403; no stored report → `routers/reports.py`
 - [x] 6.1 chronological stability contract with current reference lines, nullable deviation, and empty state → `routers/stability.py`, `services/stability.py`
 - [x] 6.2 admin-only scoping, cross-type 422, asymmetric limits, and annulled exclusion
-- [ ] Phase 7 (PR7) … Phase 9 pending
+- [x] 7.1 Vite + TypeScript scaffold, credentialed API client, session login/logout/me, Spanish role tabs and states
+- [x] 7.2 admin user management and inspector read-only catalog with characteristic details
+- [ ] Phase 8 (PR8) … Phase 9 pending
 
 ## TDD Cycle Evidence
 
@@ -44,6 +46,8 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR5 merged; PR6 is `fe
 | 5.2 | `tests/test_report.py` (HTTP/PDF) | Integration | ✅ 2/2 report HTML green | ✅ route 404 (1 failed, 3 passed, 1 skipped) | ✅ 5 passed | ✅ admin/owner/other; before/after disposition; `%PDF` bytes | ✅ authorization extracted to `may_download_report`; 5/5 green |
 | 6.1 | `tests/test_stability.py` (TestStabilityContract) | Integration | ✅ 98/98 prior green | ✅ route absent (3 failed) | ✅ 3 passed | ✅ chronological non-empty / pure LIMITS null deviation / empty state | ➖ None needed |
 | 6.2 | `tests/test_stability.py` (TestStabilityGuards) | Integration | ✅ 3/3 contract tests green | ✅ 3 failed, 1 passed (403 / mismatch / annulled) | ✅ 4 passed | ✅ role / cross-type / asymmetric references / annulled exclusion | ➖ None needed |
+| 7.1 | `src/api/client.test.ts`, `src/App.test.tsx` | Unit + RTL integration | N/A (new) | ✅ 2 suites failed: missing `client`/`App` | ✅ 5 passed | ✅ success/error + admin/inspector/session paths | ✅ RTL cleanup added; 5/5 green |
+| 7.2 | `src/App.test.tsx` | RTL integration | N/A (new) | ✅ missing `App` | ✅ 3 component flows passed | ✅ create/deactivate/reset + read-only non-empty catalog | ✅ accessible action labels; 3/3 green |
 
 ## Work Unit Evidence
 
@@ -55,6 +59,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR5 merged; PR6 is `fe
 | PR4 | `.venv/bin/python -m pytest tests/test_disposition.py` in `backend/` | **14 passed** (11 prior + 3 annulment) | `.venv/bin/python -m pytest tests/test_disposition.py::TestAnnulment::test_admin_annuls_with_audit_and_record_becomes_terminal` → **1 passed**; TestClient executes the FastAPI+SQLite HTTP lifecycle | revert PR4 commits `8c62f1d`, `aac9d1d`, `e0c8384` plus the PR4 progress-doc commit |
 | PR5 | `.venv/bin/python -m pytest tests/test_report.py` in `backend/` | **5 passed**; full backend **98 passed** | `.venv/bin/python -m pytest tests/test_report.py::test_report_download_returns_pdf_bytes_when_weasyprint_is_available` → **1 passed**; TestClient runs auth→SQLite→Jinja→WeasyPrint and verifies `%PDF` | revert PR5 commits `6d09fb5`, `ce176be` plus this progress-doc commit; removes report service/template/router/tests and dependency additions only |
 | PR6 | `.venv/bin/python -m pytest tests/test_stability.py` in `backend/` | **7 passed**; full backend **105 passed** | `.venv/bin/python -m pytest tests/test_stability.py::TestStabilityContract::test_returns_reference_lines_and_chronological_measurement_points` → **1 passed**; TestClient runs auth→inspection lifecycle→SQLite query→JSON contract | revert PR6 commits `a35d996`, `b12fba5` plus this progress-doc commit; removes stability router/service/tests and app wiring only |
+| PR7 | `npm run test -- --run` in `frontend/` | **5 passed** across 2 files | `npm run dev -- --host 127.0.0.1`; Vite ready in 143 ms and `GET /` returned 530 bytes | revert `e9f02db` plus the PR7 progress-doc commit; removes `frontend/` and its three root ignore entries only |
 
 ## Commits
 
@@ -93,6 +98,10 @@ PR6 (`feat/stability-analysis`, off updated main):
 - `b12fba5 feat(backend): enforce scoped stability access`
 - docs commit: `docs(backend): record PR6 apply progress`
 
+PR7 (`feat/frontend-shell`, off updated main):
+- `e9f02db feat(frontend): add authenticated role-based shell`
+- docs commit: `docs(frontend): record PR7 apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
@@ -117,7 +126,13 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 - PR2: Balloon PATCH not implemented (design lists `.../balloons`, `/api/balloons/{id}`; only DELETE needed by spec scenarios — re-placement = delete + create, both covered by tests).
 - PR3: characteristic selection is validated at start (belongs to part type, no dups) and echoed in the start response, but NOT persisted as a separate table (merged PR1 schema has none per design Data Model). `GET` derives `characteristic_ids` from recorded measurements; recording any characteristic of the inspected part type is allowed (unselected = simply not measured, per spec skip rule). Flagged for archive-time review.
 - PR3: status codes not pinned by spec: inactive part type → 409 (state conflict), foreign characteristic → 422, locked-inspection edits → 409, duplicate serial → 409 (matches PR2 duplicate precedent).
+- PR7: the typed client is `src/api/client.ts` rather than the planned `.js`; Recharts is installed but intentionally unused until Phase 8.
+
+## PR7 review budget
+
+- Authored implementation: **268 lines**. Generated `package-lock.json`: **3,093 lines**. Implementation total: **3,361 lines**.
+- The lockfile is committed for reproducibility and reported separately; generated-file handling is required for native review tooling rather than deleting it.
 
 ## Next steps
 
-- PR7: Frontend shell (Phase 7, tasks 7.1–7.2).
+- PR8: Frontend feature pages (Phase 8, tasks 8.1–8.4).
