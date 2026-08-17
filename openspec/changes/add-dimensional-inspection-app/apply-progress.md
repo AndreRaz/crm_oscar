@@ -1,6 +1,6 @@
 # Apply Progress — add-dimensional-inspection-app
 
-Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR3 merged; PR4 is `feat/deviation-disposition` off updated main.
+Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR4 merged; PR5 is `feat/inspection-report` off updated main.
 
 ## Tasks (cumulative)
 
@@ -17,7 +17,9 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR3 merged; PR4 is `fe
 - [x] 4.1 grouped pending-deviation queue: admin-only, newest-first, conforming/annulled excluded → `routers/deviations.py`, `services/disposition.py`
 - [x] 4.2 accept/reject: mandatory text, immutable audit, worst-of inspection status recompute
 - [x] 4.3 annulment: completed/admin-only, mandatory reason, immutable audit/measurements; annulled records excluded from queue
-- [ ] Phase 5 (PR5) … Phase 9 pending
+- [x] 5.1 current-state Jinja HTML: part image/identity, inspector/time, snapshot measurement table, dispositions, overall status → `services/report.py`, `templates/report.html.j2`
+- [x] 5.2 authorized on-demand WeasyPrint PDF: admin-any, inspector-own, other 403; no stored report → `routers/reports.py`
+- [ ] Phase 6 (PR6) … Phase 9 pending
 
 ## TDD Cycle Evidence
 
@@ -36,6 +38,8 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR3 merged; PR4 is `fe
 | 4.1 | `tests/test_disposition.py` (TestQueue) | Integration | ✅ 79/79 prior green | ✅ queue route absent | ✅ 4 passed | ✅ grouped/non-empty + conforming empty / newest-first / admin 403 + anonymous 401 | ➖ None needed |
 | 4.2 | `tests/test_disposition.py` (TestDisposition) | Integration | ✅ 4/4 queue tests green | ✅ disposition route absent | ✅ 11 passed | ✅ accept/reject/blank/worst-of/403/immutable/invalid+404+401 | ✅ shared status recompute retained for annulment |
 | 4.3 | `tests/test_disposition.py` (TestAnnulment) | Integration | ✅ 11/11 disposition tests green | ✅ 3 failed (404; route absent) | ✅ 3 passed | ✅ success + blank / role+completion+404 / repeat audit immutability + direct disposition lock | ✅ `_recompute_status` extracted; 14/14 green |
+| 5.1 | `tests/test_report.py` (HTML) | Integration | ✅ 93/93 prior green | ✅ 2 failed (`ModuleNotFoundError`) | ✅ 2 passed | ✅ disposed + conforming paths; complete evidence and no-disposition branch | ✅ incomplete report timestamp fallback; 2/2 green |
+| 5.2 | `tests/test_report.py` (HTTP/PDF) | Integration | ✅ 2/2 report HTML green | ✅ route 404 (1 failed, 3 passed, 1 skipped) | ✅ 5 passed | ✅ admin/owner/other; before/after disposition; `%PDF` bytes | ✅ authorization extracted to `may_download_report`; 5/5 green |
 
 ## Work Unit Evidence
 
@@ -45,6 +49,7 @@ Mode: Strict TDD. Chain: stacked-to-main. Branches: PR1–PR3 merged; PR4 is `fe
 | PR2 | `pytest` in `backend/` | **62 passed** (36 prior + 26 catalog) | N/A — API slice (per work-unit table); behavior fully covered by TestClient integration tests incl. multipart upload + FileResponse round-trip | revert `feat/part-catalog` commits: all changes in `backend/` (+ tasks/progress doc lines) |
 | PR3 | `pytest` in `backend/` | **79 passed** (62 prior + 17 inspection) | N/A — API slice (per work-unit table); TestClient integration covers start→record→complete lifecycle incl. snapshot immutability across characteristic edits | revert `feat/inspection-execution` commits: all changes in `backend/` (+ tasks/progress doc lines) |
 | PR4 | `.venv/bin/python -m pytest tests/test_disposition.py` in `backend/` | **14 passed** (11 prior + 3 annulment) | `.venv/bin/python -m pytest tests/test_disposition.py::TestAnnulment::test_admin_annuls_with_audit_and_record_becomes_terminal` → **1 passed**; TestClient executes the FastAPI+SQLite HTTP lifecycle | revert PR4 commits `8c62f1d`, `aac9d1d`, `e0c8384` plus the PR4 progress-doc commit |
+| PR5 | `.venv/bin/python -m pytest tests/test_report.py` in `backend/` | **5 passed**; full backend **98 passed** | `.venv/bin/python -m pytest tests/test_report.py::test_report_download_returns_pdf_bytes_when_weasyprint_is_available` → **1 passed**; TestClient runs auth→SQLite→Jinja→WeasyPrint and verifies `%PDF` | revert PR5 commits `6d09fb5`, `ce176be` plus this progress-doc commit; removes report service/template/router/tests and dependency additions only |
 
 ## Commits
 
@@ -73,6 +78,11 @@ PR4 (`feat/deviation-disposition`, off updated main):
 - `e0c8384 feat(backend): add audited inspection annulment`
 - docs commit: `docs(backend): record PR4 apply progress`
 
+PR5 (`feat/inspection-report`, off updated main):
+- `6d09fb5 feat(backend): render current inspection report HTML`
+- `ce176be feat(backend): add authorized PDF report downloads`
+- docs commit: `docs(backend): record PR5 apply progress`
+
 ## ⚠️ Budget breach (needs orchestrator decision)
 
 PR3 code diff `main..HEAD` = **444 insertions + 1 deletion = 445 changed lines** vs hard budget 400 (+45). Same structural cause as PR1/PR2: strict TDD with tests committed alongside behavior (238 test lines of the 445). No tests trimmed. Clean split, both halves independently green and under budget:
@@ -100,5 +110,4 @@ Both slices retain their tests and stay independently reviewable; final `main..H
 
 ## Next steps
 
-- Orchestrator: deliver PR4 as the documented PR4a → PR4b stacked split; do not collapse it into an over-budget PR.
-- PR5: Report API (Phase 5, tasks 5.1–5.2).
+- PR6: Stability API (Phase 6, tasks 6.1–6.2).

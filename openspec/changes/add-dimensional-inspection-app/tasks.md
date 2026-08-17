@@ -64,8 +64,8 @@ Chain strategy: pending
 
 ## Phase 5: Report (PR5)
 
-- [ ] 5.1 `tests/test_report.py`: HTML shows identity, characteristic table, notes, overall status; conforming omits disposition text → `services/report.py`, `templates/report.html.j2`
-- [ ] 5.2 authz admin-any/inspector-own/other-403; reflects latest disposition; `%PDF` smoke test → `routers/reports.py`
+- [x] 5.1 `tests/test_report.py`: HTML shows identity, characteristic table, notes, overall status; conforming omits disposition text → `services/report.py`, `templates/report.html.j2`
+- [x] 5.2 authz admin-any/inspector-own/other-403; reflects latest disposition; `%PDF` smoke test → `routers/reports.py`
 
 ## Phase 6: Stability (PR6)
 
