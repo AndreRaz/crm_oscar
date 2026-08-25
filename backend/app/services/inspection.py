@@ -4,9 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Characteristic, Inspection, Measurement, PartType, Piece, User, utcnow,
+    Characteristic, Deviation, Inspection, Measurement, PartRevision,
+    PartType, Piece, User, utcnow,
 )
-from app.services.status import InspectionStatus, worst_of
+from app.services.status import InspectionStatus, MeasurementStatus, worst_of
 from app.services.tolerance import evaluate
 
 
@@ -19,14 +20,22 @@ class InspectionError(Exception):
         super().__init__(detail)
 
 
-def resolve_limits(c: Characteristic) -> tuple[float | None, float | None, float | None]:
-    """Resolved tolerance basis (ADR-4): nominal plus lower/upper limit copies."""
-    if c.tol_type == "SYMMETRIC":
-        return c.nominal, c.nominal - c.tol_plus, c.nominal + c.tol_plus
+def resolve_limits(c: Characteristic) -> tuple[float, float, float]:
+    """Return the characteristic's canonical persisted evaluation basis."""
     return c.nominal, c.min_limit, c.max_limit
 
 
-def start_inspection(db: Session, part_type_id: int, serial: str,
+def current_part_revision(db: Session, part_type: PartType) -> PartRevision:
+    """Return the immutable revision matching the part's current revision_no."""
+    revision = db.scalar(select(PartRevision).where(
+        PartRevision.part_type_id == part_type.id,
+        PartRevision.revision_no == part_type.revision_no))
+    if revision is None:
+        raise InspectionError(409, "Part type has no current revision")
+    return revision
+
+
+def start_inspection(db: Session, part_type_id: int,
                      characteristic_ids: list[int], user: User) -> Inspection:
     part_type = db.get(PartType, part_type_id)
     if part_type is None:
@@ -41,14 +50,13 @@ def start_inspection(db: Session, part_type_id: int, serial: str,
         c = selected.get(cid)
         if c is None or c.part_type_id != part_type_id:
             raise InspectionError(422, "Characteristic does not belong to the selected part type")
-    piece = db.scalar(select(Piece).where(
-        Piece.part_type_id == part_type_id, Piece.serial == serial))
-    if piece is not None:
-        raise InspectionError(409, "Serial already used for this part type")
-    piece = Piece(part_type_id=part_type_id, serial=serial)
+    revision = current_part_revision(db, part_type)
+    piece = Piece(part_type_id=part_type_id)
     db.add(piece)
     db.flush()
-    inspection = Inspection(piece_id=piece.id, inspector_id=user.id,
+    inspection = Inspection(piece_id=piece.id,
+                             part_revision_id=revision.id,
+                             inspector_id=user.id,
                              selected_characteristic_ids=",".join(map(str, characteristic_ids)),
                              status=InspectionStatus.PENDING)
     db.add(inspection)
@@ -74,13 +82,21 @@ def record_measurement(db: Session, inspection: Inspection,
             Measurement.characteristic_id == characteristic_id)) is not None:
         raise InspectionError(409, "Characteristic already measured for this inspection")
     nominal, lower, upper = resolve_limits(c)
+    status = evaluate(actual, nominal, lower, upper)
     measurement = Measurement(
         inspection_id=inspection.id, characteristic_id=characteristic_id,
         actual_value=actual, nominal_snapshot=nominal,
-        lower_limit_snapshot=lower, upper_limit_snapshot=upper,
-        deviation=actual - nominal if nominal is not None else None,
-        status=evaluate(actual, nominal, lower, upper))
+        min_limit_snapshot=lower, max_limit_snapshot=upper,
+        measurement_method_snapshot=c.measurement_method,
+        deviation=actual - nominal, status=status)
     db.add(measurement)
+    db.flush()
+    if status is MeasurementStatus.PENDING:
+        db.add(Deviation(
+            measurement_id=measurement.id,
+            origin="AUTO",
+            status="PENDING",
+        ))
     db.commit()
     db.refresh(measurement)
     return measurement

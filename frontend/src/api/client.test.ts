@@ -19,10 +19,10 @@ describe("API client", () => {
   });
 
   it("uses typed catalog JSON endpoints and preserves multipart image headers", async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 7, code: "PT-100", image_path: null, active: true }))));
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 7, part_number: "PT-100", image_path: null, active: true }))));
     vi.stubGlobal("fetch", fetchMock);
-    await api.catalog.createPart({ code: "PT-100", name: "Pump", description: "Body" });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types", expect.objectContaining({ method: "POST", body: JSON.stringify({ code: "PT-100", name: "Pump", description: "Body" }) }));
+    await api.catalog.createPart({ part_number: "PT-100", part_description: "Body" });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types", expect.objectContaining({ method: "POST", body: JSON.stringify({ part_number: "PT-100", part_description: "Body" }) }));
     const file = new File(["image"], "pieza.png", { type: "image/png" });
     await api.catalog.uploadImage(7, file);
     const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
@@ -34,32 +34,51 @@ describe("API client", () => {
   it("uses the inspection start, measurement, and completion contracts", async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 20, status: "PENDING" }))));
     vi.stubGlobal("fetch", fetchMock);
-    await api.inspections.start({ part_type_id: 7, serial: "SER-1", characteristic_ids: [8] });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections", expect.objectContaining({ method: "POST", body: JSON.stringify({ part_type_id: 7, serial: "SER-1", characteristic_ids: [8] }) }));
+    await api.inspections.start({ part_type_id: 7, characteristic_ids: [8] });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections", expect.objectContaining({ method: "POST", body: JSON.stringify({ part_type_id: 7, characteristic_ids: [8] }) }));
     await api.inspections.record(20, { characteristic_id: 8, actual_value: 10.1 });
     expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/measurements", expect.objectContaining({ method: "POST", body: JSON.stringify({ characteristic_id: 8, actual_value: 10.1 }) }));
     await api.inspections.complete(20);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/complete", expect.objectContaining({ method: "POST" }));
   });
 
-  it("uses deviation, annulment, detail, and authorized PDF contracts", async () => {
+  it("keeps owner-scoped inspection discovery as the default and opts into shared discovery", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify([]))));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.inspections.list();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections", expect.objectContaining({ credentials: "include" }));
+    await api.inspections.list("shared");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections?scope=shared", expect.objectContaining({ credentials: "include" }));
+  });
+
+  it("uses deviation, approved-catalog, annulment, and persisted-report contracts", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ groups: [] })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 30, status: "REJECTED" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 7, code: "DEV-7", active: true }])))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 50, status: "ACCEPTED" })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 20, status: "REJECTED" })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 20, annulled_at: "now" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify([])))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 90, inspection_id: 20 })))
       .mockResolvedValueOnce(new Response(new Blob(["pdf"], { type: "application/pdf" })));
     vi.stubGlobal("fetch", fetchMock);
     await api.deviations.list();
     expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations", expect.objectContaining({ credentials: "include" }));
-    await api.deviations.dispose(30, { action: "reject", text: "Fuera de límite" });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/measurements/30/disposition", expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "reject", text: "Fuera de límite" }) }));
+    await api.approvedDeviations.listActive();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/approved-deviations?active_only=true", expect.any(Object));
+    await api.deviations.resolve(50, { action: "accept", approved_deviation_id: 7 });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations/50/resolution", expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "accept", approved_deviation_id: 7 }) }));
     await api.inspections.detail(20);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20", expect.any(Object));
-    await api.inspections.annul(20, "Serie incorrecta");
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/annul", expect.objectContaining({ method: "POST", body: JSON.stringify({ reason: "Serie incorrecta" }) }));
-    await expect(api.inspections.report(20)).resolves.toBeInstanceOf(Blob);
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/report.pdf", expect.objectContaining({ credentials: "include" }));
+    await api.inspections.annul(20, "Inspección duplicada");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/annul", expect.objectContaining({ method: "POST", body: JSON.stringify({ reason: "Inspección duplicada" }) }));
+    await api.reports.list();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/reports", expect.any(Object));
+    await api.reports.generate(20);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/inspections/20/reports", expect.objectContaining({ method: "POST" }));
+    await expect(api.reports.download(90)).resolves.toBeInstanceOf(Blob);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/reports/90/download", expect.objectContaining({ credentials: "include" }));
   });
 
   it("requests stability for exactly one part type and characteristic", async () => {

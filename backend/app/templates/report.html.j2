@@ -18,25 +18,27 @@
   <header>
     <div>
       <h1>Informe de inspección</h1>
-      <p><strong>Tipo de pieza:</strong> {{ part_type.code }}</p>
-      <p><strong>Serie:</strong> {{ piece.serial }}</p>
+      <p><strong>Número de parte:</strong> {{ part.part_number }}</p>
+      <p><strong>Descripción de parte:</strong> {{ part.part_description }}</p>
       <p><strong>Inspector:</strong> {{ inspector.username }}</p>
       <p><strong>Fecha/hora:</strong> {{ report_at.isoformat() }}</p>
       <p class="status"><strong>Estado general:</strong> {{ inspection.status.value }}</p>
     </div>
-    {% if image_uri %}<img src="{{ image_uri }}" alt="Imagen de {{ part_type.code }}">{% endif %}
+    {% if image_uri %}<img src="{{ image_uri }}" alt="Imagen de {{ part.part_number }}">{% endif %}
   </header>
 
   <table>
     <thead><tr>
-      <th>Característica</th><th>Nominal</th><th>Tolerancia</th>
-      <th>Actual</th><th>Desviación</th><th>Estado</th>
+      <th>Característica</th><th>Método</th><th>Nominal</th>
+      <th>Mínimo</th><th>Máximo</th><th>Actual</th>
+      <th>Desviación</th><th>Estado</th>
     </tr></thead>
     <tbody>
     {% for row in measurements %}
       <tr>
-        <td>{{ row.code }}{% if row.name %} — {{ row.name }}{% endif %}{% if row.unit %} ({{ row.unit }}){% endif %}</td>
-        <td>{{ row.nominal }}</td><td>{{ row.tolerance }}</td>
+         <td>{{ row.control_plan }}{% if row.name %} — {{ row.name }}{% endif %}{% if row.unit %} ({{ row.unit }}){% endif %}</td>
+        <td>{{ row.method }}</td><td>{{ row.nominal }}</td>
+        <td>{{ row.min_limit }}</td><td>{{ row.max_limit }}</td>
         <td>{{ row.actual }}</td><td>{{ row.deviation }}</td><td>{{ row.status }}</td>
       </tr>
     {% endfor %}
@@ -45,8 +47,13 @@
 
   {% if disposition_notes %}
   <section id="dispositions">
-    <h2>Notas de disposición</h2>
-    {% for row in disposition_notes %}<p><strong>{{ row.code }}:</strong> {{ row.note }}</p>{% endfor %}
+    <h2>Evidencia de disposición</h2>
+    {% for row in disposition_notes %}
+      <p><strong>{{ row.control_plan }} — {{ row.deviation.origin }} ({{ row.deviation.status }}):</strong>
+      {% if row.deviation.description %}Desviación: {{ row.deviation.description }}.{% endif %}
+      {% if row.deviation.approved_deviation_code_snapshot %} Disposición: {{ row.deviation.approved_deviation_code_snapshot }} — {{ row.deviation.approved_deviation_description_snapshot }}.{% endif %}
+      {% if row.deviation.rejection_reason %} Motivo de rechazo: {{ row.deviation.rejection_reason }}.{% endif %}</p>
+    {% endfor %}
   </section>
   {% endif %}
 </body>

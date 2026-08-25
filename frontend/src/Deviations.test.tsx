@@ -4,69 +4,96 @@ import { beforeEach, expect, it, vi } from "vitest";
 import Deviations from "./Deviations";
 
 const api = vi.hoisted(() => ({
-  deviations: { list: vi.fn(), dispose: vi.fn() },
-  inspections: { detail: vi.fn(), annul: vi.fn(), report: vi.fn() },
+  approvedDeviations: { listActive: vi.fn() },
+  deviations: { list: vi.fn(), resolve: vi.fn() },
+  inspections: { detail: vi.fn(), annul: vi.fn() },
 }));
 vi.mock("./api/client", () => ({ api }));
 
-const inspection = { id: 20, part_type_code: "PT-100", serial: "SER-1", inspector: "luis", completed_at: "2026-08-17T10:00:00Z", status: "PENDING" };
-const group = { inspection, measurements: [
-  { id: 30, characteristic_id: 8, actual_value: 10.5, deviation: .5, status: "PENDING" },
-  { id: 31, characteristic_id: 9, actual_value: 12.5, deviation: 1.5, status: "PENDING" },
-] };
+const inspection = {
+  id: 20, part_number: "PT-100", inspector: "luis",
+  completed_at: "2026-08-17T10:00:00Z", annulled_at: null, status: "PENDING",
+};
+const group = {
+  inspection,
+  measurements: [
+    { id: 30, characteristic_id: 8, actual_value: 10.5, deviation: .5, status: "PENDING" },
+    { id: 31, characteristic_id: 9, actual_value: 10, deviation: null, status: "IN_TOLERANCE" },
+  ],
+  deviations: [
+    { id: 50, measurement_id: 30, origin: "AUTO", status: "PENDING", description: null, created_by: null, created_at: "2026-08-17T10:00:00Z", approved_deviation_id: null, approved_deviation_code_snapshot: null, approved_deviation_description_snapshot: null, rejection_reason: null, resolved_by: null, resolved_at: null },
+    { id: 51, measurement_id: 31, origin: "MANUAL", status: "PENDING", description: "Acabado superficial", created_by: 2, created_at: "2026-08-17T10:05:00Z", approved_deviation_id: null, approved_deviation_code_snapshot: null, approved_deviation_description_snapshot: null, rejection_reason: null, resolved_by: null, resolved_at: null },
+  ],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  api.approvedDeviations.listActive.mockResolvedValue([
+    { id: 7, code: "DEV-7", description: "Uso aprobado", active: true, created_at: "2026-08-01" },
+  ]);
   api.deviations.list.mockResolvedValue({ groups: [group] });
   api.inspections.detail.mockResolvedValue({ ...inspection, status: "PENDING", measurements: [] });
-  api.inspections.report.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
-  vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:report"), revokeObjectURL: vi.fn() });
-  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 });
 
-it("groups pending measurements and refreshes the server status after an accepted disposition", async () => {
-  api.deviations.dispose.mockResolvedValue({ ...group.measurements[0], status: "DEVIATION_ACCEPTED" });
+it("shows the shared pending list to inspectors without serials or action controls", async () => {
+  render(<Deviations role="inspector" />);
+
+  expect(await screen.findByRole("heading", { name: "PT-100 · Inspección 20" })).toBeInTheDocument();
+  expect(screen.getAllByText("Pendiente")).toHaveLength(2);
+  expect(screen.getByText("Automática · Medición 30")).toBeInTheDocument();
+  expect(screen.getByText("Manual · Medición 31")).toBeInTheDocument();
+  expect(screen.getByText("Descripción: Acabado superficial")).toBeInTheDocument();
+  expect(screen.queryByText(/SER-|serial/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: /Resolver desviación/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /informe/i })).not.toBeInTheDocument();
+  expect(api.approvedDeviations.listActive).not.toHaveBeenCalled();
+});
+
+it("lets an administrator accept with an active approved-deviation entry", async () => {
+  api.deviations.resolve.mockResolvedValue({ ...group.deviations[0], status: "ACCEPTED", approved_deviation_id: 7 });
   api.inspections.detail.mockResolvedValue({ ...inspection, status: "ACCEPTED_WITH_DEVIATIONS", measurements: [] });
   api.deviations.list.mockResolvedValueOnce({ groups: [group] }).mockResolvedValueOnce({ groups: [] });
-  const user = userEvent.setup(); render(<Deviations />);
+  const user = userEvent.setup();
+  render(<Deviations role="admin" />);
 
-  expect(await screen.findByRole("heading", { name: "PT-100 · SER-1" })).toBeInTheDocument();
-  expect(screen.getByText("Valor real: 10.5 · Desviación: 0.5 · Estado: PENDING")).toBeInTheDocument();
-  fireEvent.submit(screen.getByRole("form", { name: "Disponer medición 30" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Escribe una nota o motivo");
-  expect(api.deviations.dispose).not.toHaveBeenCalled();
+  await user.selectOptions(await screen.findByLabelText("Desviación aprobada para desviación 50"), "7");
+  await user.click(screen.getByRole("button", { name: "Resolver desviación 50" }));
 
-  await user.type(screen.getByLabelText("Nota o motivo de la medición 30"), "Concesión aprobada");
-  await user.click(screen.getByRole("button", { name: "Guardar disposición de medición 30" }));
-  expect(api.deviations.dispose).toHaveBeenCalledWith(30, { action: "accept", text: "Concesión aprobada" });
+  expect(api.approvedDeviations.listActive).toHaveBeenCalledOnce();
+  expect(api.deviations.resolve).toHaveBeenCalledWith(50, { action: "accept", approved_deviation_id: 7 });
   expect(await screen.findByRole("status")).toHaveTextContent("Estado de inspección: ACCEPTED_WITH_DEVIATIONS");
   await waitFor(() => expect(api.deviations.list).toHaveBeenCalledTimes(2));
 });
 
-it("sends a mandatory rejection reason without deriving a client status", async () => {
-  api.deviations.dispose.mockResolvedValue({ ...group.measurements[1], status: "REJECTED" });
+it("requires and submits a rejection reason without an approved entry", async () => {
+  api.deviations.resolve.mockResolvedValue({ ...group.deviations[1], status: "REJECTED", rejection_reason: "Rechazar pieza" });
   api.inspections.detail.mockResolvedValue({ ...inspection, status: "REJECTED", measurements: [] });
-  const user = userEvent.setup(); render(<Deviations />);
-  await user.selectOptions(await screen.findByLabelText("Decisión para medición 31"), "reject");
-  await user.type(screen.getByLabelText("Nota o motivo de la medición 31"), "Rechazar pieza");
-  await user.click(screen.getByRole("button", { name: "Guardar disposición de medición 31" }));
-  expect(api.deviations.dispose).toHaveBeenCalledWith(31, { action: "reject", text: "Rechazar pieza" });
+  const user = userEvent.setup();
+  render(<Deviations role="admin" />);
+
+  await user.selectOptions(await screen.findByLabelText("Decisión para desviación 51"), "reject");
+  fireEvent.submit(screen.getByRole("form", { name: "Resolver desviación 51" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Escribe el motivo de rechazo");
+  expect(api.deviations.resolve).not.toHaveBeenCalled();
+
+  await user.type(screen.getByLabelText("Motivo de rechazo para desviación 51"), "Rechazar pieza");
+  await user.click(screen.getByRole("button", { name: "Resolver desviación 51" }));
+  expect(api.deviations.resolve).toHaveBeenCalledWith(51, { action: "reject", rejection_reason: "Rechazar pieza" });
   expect(await screen.findByRole("status")).toHaveTextContent("Estado de inspección: REJECTED");
 });
 
-it("downloads the authorized PDF and requires a reason before annulment", async () => {
-  api.inspections.annul.mockResolvedValue({ ...inspection, annulled_at: "2026-08-17T11:00:00Z", annulment_reason: "Serie incorrecta" });
-  api.deviations.list.mockResolvedValueOnce({ groups: [group] }).mockResolvedValueOnce({ groups: [] });
-  const user = userEvent.setup(); render(<Deviations />);
-  await user.click(await screen.findByRole("button", { name: "Descargar informe de SER-1" }));
-  expect(api.inspections.report).toHaveBeenCalledWith(20);
-  expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
+it("preserves manual deviations on annulled inspections while suppressing repeat annulment", async () => {
+  const annulledGroup = {
+    inspection: { ...inspection, id: 22, annulled_at: "2026-08-18T11:30:00Z", status: "CONFORMING" },
+    measurements: [{ id: 32, characteristic_id: 9, actual_value: 10, deviation: null, status: "IN_TOLERANCE" }],
+    deviations: [{ ...group.deviations[1], id: 52, measurement_id: 32, description: "Rayadura visible" }],
+  };
+  api.deviations.list.mockResolvedValue({ groups: [annulledGroup] });
+  render(<Deviations role="admin" />);
 
-  fireEvent.submit(screen.getByRole("form", { name: "Anular inspección SER-1" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Escribe el motivo de anulación");
-  expect(api.inspections.annul).not.toHaveBeenCalled();
-  await user.type(screen.getByLabelText("Motivo de anulación de SER-1"), "Serie incorrecta");
-  await user.click(screen.getByRole("button", { name: "Anular inspección SER-1" }));
-  expect(api.inspections.annul).toHaveBeenCalledWith(20, "Serie incorrecta");
-  expect(await screen.findByRole("status")).toHaveTextContent("Inspección anulada");
+  expect(await screen.findByText("Anulada: 2026-08-18T11:30:00Z")).toBeInTheDocument();
+  expect(screen.getByText("Manual · Medición 32")).toBeInTheDocument();
+  expect(screen.getByText("Valor real: 10 · Desviación: — · Estado: IN_TOLERANCE")).toBeInTheDocument();
+  expect(screen.getByRole("form", { name: "Resolver desviación 52" })).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Anular inspección 22" })).not.toBeInTheDocument();
 });

@@ -1,10 +1,14 @@
-"""Deviation queue and measurement disposition endpoints (admin only)."""
+"""Shared deviation listing and admin-only resolution endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, require_role
-from app.models import Measurement, User
-from app.schemas import DeviationsOut, DispositionIn, MeasurementOut
+from app.deps import get_current_user, get_db, require_role
+from app.models import Deviation, Measurement, User
+from app.schemas import (
+    DeviationOut, DeviationResolutionIn, DeviationsOut, DispositionIn,
+    MeasurementOut,
+)
 from app.services import disposition as service
 
 router = APIRouter(prefix="/api", tags=["deviations"])
@@ -12,8 +16,25 @@ router = APIRouter(prefix="/api", tags=["deviations"])
 
 @router.get("/deviations", response_model=DeviationsOut)
 def queue(db: Session = Depends(get_db),
-          _: User = Depends(require_role("admin"))):
+          _: User = Depends(get_current_user)):
     return DeviationsOut(groups=service.pending_queue(db))
+
+
+@router.post("/deviations/{deviation_id}/resolution", response_model=DeviationOut)
+def resolve(deviation_id: int, payload: DeviationResolutionIn,
+            db: Session = Depends(get_db),
+            user: User = Depends(require_role("admin"))):
+    deviation = db.get(Deviation, deviation_id)
+    if deviation is None:
+        raise HTTPException(status_code=404, detail="Deviation not found")
+    try:
+        return service.resolve_deviation(
+            db, deviation, payload.action, user,
+            approved_deviation_id=payload.approved_deviation_id,
+            rejection_reason=payload.rejection_reason,
+        )
+    except service.DispositionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 @router.post("/measurements/{measurement_id}/disposition",
@@ -24,8 +45,18 @@ def disposition(measurement_id: int, payload: DispositionIn,
     measurement = db.get(Measurement, measurement_id)
     if measurement is None:
         raise HTTPException(status_code=404, detail="Measurement not found")
+    deviation = db.scalar(select(Deviation).where(
+        Deviation.measurement_id == measurement_id,
+        Deviation.origin == "AUTO",
+    ))
+    if deviation is None:
+        raise HTTPException(status_code=409, detail="AUTO deviation not found")
     try:
-        return service.dispose_measurement(db, measurement, payload.action,
-                                           payload.text, user)
+        service.resolve_deviation(
+            db, deviation, payload.action, user,
+            approved_deviation_id=payload.approved_deviation_id,
+            rejection_reason=payload.rejection_reason,
+        )
+        return measurement
     except service.DispositionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

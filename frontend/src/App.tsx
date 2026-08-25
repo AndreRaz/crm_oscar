@@ -4,6 +4,7 @@ import Catalog from "./Catalog";
 import Inspection from "./Inspection";
 import Deviations from "./Deviations";
 import Stability from "./Stability";
+import GeneratedReports from "./GeneratedReports";
 
 function Login({ onLogin }: { onLogin: (user: User) => void }) {
   const [error, setError] = useState("");
@@ -51,10 +52,10 @@ function Users() {
   </section>;
 }
 
-type Page = "users" | "catalog" | "deviations" | "stability" | "inspection";
+type Page = "users" | "catalog" | "deviations" | "stability" | "inspection" | "reports";
 const tabs: Record<Role, [Page, string][]> = {
-  admin: [["users", "Usuarios"], ["catalog", "Catálogo"], ["inspection", "Inspección"], ["deviations", "Desviaciones"], ["stability", "Estabilidad"]],
-  inspector: [["catalog", "Catálogo"], ["inspection", "Inspección"]],
+  admin: [["users", "Usuarios"], ["catalog", "Catálogo"], ["inspection", "Inspección"], ["deviations", "Desviaciones"], ["reports", "Informes generados"], ["stability", "Estabilidad"]],
+  inspector: [["catalog", "Catálogo"], ["inspection", "Inspección"], ["deviations", "Desviaciones"], ["reports", "Informes generados"]],
 };
 
 export default function App() {
@@ -65,6 +66,6 @@ export default function App() {
   if (user === null) return <Login onLogin={enter} />;
   return <><header><div><strong>Control dimensional</strong><small>{user.username}</small></div><button onClick={async () => { await api.auth.logout(); setUser(null); }}>Cerrar sesión</button></header>
     <nav aria-label="Navegación principal">{tabs[user.role].map(([key, label]) => <button role="tab" aria-selected={page === key} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav>
-    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection role={user.role} /> : page === "deviations" ? <Deviations /> : <Stability />}</main>
+    <main>{page === "users" ? <Users /> : page === "catalog" ? <Catalog role={user.role} /> : page === "inspection" ? <Inspection role={user.role} /> : page === "deviations" ? <Deviations role={user.role} /> : page === "reports" ? <GeneratedReports /> : <Stability />}</main>
   </>;
 }

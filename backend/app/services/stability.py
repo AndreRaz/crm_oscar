@@ -12,7 +12,7 @@ def analysis(db: Session, part_type_id: int, characteristic_id: int) -> dict:
         raise ValueError("Characteristic does not belong to the selected part type")
     nominal, lower, upper = resolve_limits(characteristic)
     rows = db.execute(
-        select(Measurement, Inspection, Piece)
+        select(Measurement, Inspection)
         .join(Inspection, Measurement.inspection_id == Inspection.id)
         .join(Piece, Inspection.piece_id == Piece.id)
         .where(
@@ -25,7 +25,7 @@ def analysis(db: Session, part_type_id: int, characteristic_id: int) -> dict:
     ).all()
     return {
         "characteristic": {
-            "code": characteristic.code,
+            "control_plan": characteristic.control_plan,
             "name": characteristic.name,
             "unit": characteristic.unit,
             "nominal": nominal,
@@ -34,10 +34,9 @@ def analysis(db: Session, part_type_id: int, characteristic_id: int) -> dict:
         },
         "points": [{
             "inspection_id": inspection.id,
-            "serial": piece.serial,
             "completed_at": inspection.completed_at,
             "actual": measurement.actual_value,
             "deviation": measurement.deviation,
             "status": measurement.status,
-        } for measurement, inspection, piece in rows],
+        } for measurement, inspection in rows],
     }
