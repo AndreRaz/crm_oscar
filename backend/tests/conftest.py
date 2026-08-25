@@ -28,11 +28,12 @@ def db():
 
 
 @pytest.fixture()
-def client(db, monkeypatch):
+def client(db, monkeypatch, tmp_path):
     from app.deps import get_db
     from app.main import app
 
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
+    monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
     app.dependency_overrides[get_db] = lambda: db
     with TestClient(app) as test_client:
         yield test_client

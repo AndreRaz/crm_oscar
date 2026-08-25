@@ -31,8 +31,8 @@ export default function Stability() {
   return <section><h2>Estabilidad</h2>
     {error && <p role="alert">{error}</p>}
     {!parts ? !error && <p>Cargando tipos de pieza…</p> : <div className="row card stability-filters">
-      <label>Tipo de pieza<select value={partId || ""} onChange={selectPart}><option value="">Selecciona</option>{parts.map((part) => <option value={part.id} key={part.id}>{part.code}</option>)}</select></label>
-      <label>Característica<select value={characteristicId || ""} onChange={selectCharacteristic} disabled={!partId || !characteristics}><option value="">Selecciona</option>{characteristics?.map((item) => <option value={item.id} key={item.id}>{item.code} — {item.name || "Sin nombre"}</option>)}</select></label>
+      <label>Tipo de pieza<select value={partId || ""} onChange={selectPart}><option value="">Selecciona</option>{parts.map((part) => <option value={part.id} key={part.id}>{part.part_number}</option>)}</select></label>
+      <label>Característica<select value={characteristicId || ""} onChange={selectCharacteristic} disabled={!partId || !characteristics}><option value="">Selecciona</option>{characteristics?.map((item) => <option value={item.id} key={item.id}>{item.control_plan} — {item.name || "Sin nombre"}</option>)}</select></label>
     </div>}
     {parts && (!partId ? <p>Selecciona un tipo de pieza y una característica.</p> : !characteristics ? !error && <p>Cargando características…</p> : characteristics.length === 0 ? <p>Este tipo no tiene características.</p> : characteristicId && !analysis ? !error && <p>Cargando análisis…</p> : null)}
     {analysis && (analysis.points.length === 0 ? <p>No hay mediciones para esta selección.</p> : <>
@@ -43,8 +43,8 @@ export default function Stability() {
         {analysis.characteristic.lower_limit !== null && <ReferenceLine y={analysis.characteristic.lower_limit} label="Límite inferior" stroke="#a11818" />}
         {analysis.characteristic.upper_limit !== null && <ReferenceLine y={analysis.characteristic.upper_limit} label="Límite superior" stroke="#a11818" />}
       </LineChart></div>
-      <table aria-label="Mediciones cronológicas"><thead><tr><th>Serie</th><th>Fecha</th><th>Valor real</th><th>Desviación</th><th>Estado</th></tr></thead>
-        <tbody>{analysis.points.map((point) => <tr key={point.inspection_id}><td>{point.serial}</td><td>{formatDate(point.completed_at)}</td><td>{point.actual}</td><td>{point.deviation ?? "—"}</td><td>{point.status}</td></tr>)}</tbody>
+      <table aria-label="Mediciones cronológicas"><thead><tr><th>Inspección</th><th>Fecha</th><th>Valor real</th><th>Desviación</th><th>Estado</th></tr></thead>
+        <tbody>{analysis.points.map((point) => <tr key={point.inspection_id}><td>{point.inspection_id}</td><td>{formatDate(point.completed_at)}</td><td>{point.actual}</td><td>{point.deviation ?? "—"}</td><td>{point.status}</td></tr>)}</tbody>
       </table>
     </>)}
   </section>;

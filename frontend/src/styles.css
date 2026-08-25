@@ -52,7 +52,11 @@ label { display: grid; gap: .25rem; }
 .queue-heading h3, .queue-heading p, .list li p { margin-block: .25rem; }
 .deviation-list .list li > div { width: 100%; }
 .deviation-list form label { flex: 1 1 14rem; }
+.deviation-pending { background: #fff3bf !important; border: 1px solid #e6b800; }
 .annul-form { border-top: 1px solid #dce2e8; padding-top: 1rem; }
+.report-inspections > li { align-items: flex-start; }
+.report-inspections > li > div { margin-right: auto; }
+.report-inspections ul { margin-block: .5rem 0; }
 .stability-filters { margin-bottom: 1rem; }
 .chart-scroll { overflow-x: auto; background: white; border: 1px solid #dce2e8; border-radius: .5rem; }
 table { width: 100%; margin-top: 1rem; border-collapse: collapse; background: white; }

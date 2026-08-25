@@ -15,13 +15,16 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
         })
         assert response.status_code == 201
 
-    part_type = client.post("/api/part-types", json={"code": "VALVE-001", "name": "Valve", "description": "Test"})
+    part_type = client.post("/api/part-types", json={
+        "part_number": "VALVE-001", "part_description": "Valve test",
+    })
     assert part_type.status_code == 201
     part_type_id = part_type.json()["id"]
     characteristic = client.post(
         f"/api/part-types/{part_type_id}/characteristics",
         json={
-            "code": "D1", "name": "Diameter", "unit": "mm",
+            "control_plan": "D1", "name": "Diameter", "unit": "mm",
+            "measurement_method": "Digital caliper",
             "tol_type": "SYMMETRIC", "nominal": 10.0, "tol_plus": 0.1,
         },
     )
@@ -29,18 +32,22 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
     characteristic_id = characteristic.json()["id"]
     balloon = client.post(
         f"/api/part-types/{part_type_id}/balloons",
-        json={"number": 1, "characteristic_id": characteristic_id, "x": 0.25, "y": 0.75},
+        json={"characteristic_id": characteristic_id, "x": 0.25, "y": 0.75},
     )
     assert balloon.status_code == 201
+    approved = client.post("/api/approved-deviations", json={
+        "code": "AD-001", "description": "Approved concession",
+    }).json()
 
     assert client.post("/api/auth/logout").status_code == 200
     assert login(client, "inspector").status_code == 200
-    assert client.get(f"/api/part-types/{part_type_id}/balloons").json()[0]["number"] == 1
+    assert client.get(
+        f"/api/part-types/{part_type_id}/balloons",
+    ).json()[0]["characteristic_id"] == characteristic_id
     assert client.patch(f"/api/part-types/{part_type_id}", json={"active": False}).status_code == 403
 
     inspection = client.post("/api/inspections", json={
         "part_type_id": part_type_id,
-        "serial": "SERIAL-001",
         "characteristic_ids": [characteristic_id],
     })
     assert inspection.status_code == 201
@@ -61,7 +68,7 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
     }).status_code == 409
     assert client.post(f"/api/inspections/{inspection_id}/complete").status_code == 409
     assert client.post(f"/api/measurements/{measurement_id}/disposition", json={
-        "action": "accept", "text": "Use as is",
+        "action": "accept", "approved_deviation_id": approved["id"],
     }).status_code == 403
     assert client.get("/api/stability", params={
         "part_type_id": part_type_id, "characteristic_id": characteristic_id,
@@ -72,7 +79,7 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
     queue = client.get("/api/deviations").json()["groups"]
     assert queue[0]["measurements"][0]["id"] == measurement_id
     disposition = client.post(f"/api/measurements/{measurement_id}/disposition", json={
-        "action": "accept", "text": "Approved concession",
+        "action": "accept", "approved_deviation_id": approved["id"],
     })
     assert disposition.status_code == 200
     assert disposition.json()["status"] == "DEVIATION_ACCEPTED"
@@ -87,14 +94,18 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
     assert stored["nominal_snapshot"] == 10.0
     assert stored["deviation"] == pytest.approx(0.5)
 
-    report = client.get(f"/api/inspections/{inspection_id}/report.pdf")
+    generated = client.post(f"/api/inspections/{inspection_id}/reports")
+    assert generated.status_code == 201
+    report = client.get(f"/api/reports/{generated.json()['id']}/download")
     assert report.status_code == 200
     assert report.headers["content-type"] == "application/pdf"
     assert report.content.startswith(b"%PDF")
 
     client.post("/api/auth/logout")
     login(client, "observer")
-    assert client.get(f"/api/inspections/{inspection_id}/report.pdf").status_code == 403
+    assert client.get(
+        f"/api/reports/{generated.json()['id']}/download",
+    ).status_code == 403
     client.post("/api/auth/logout")
     login(client, "admin")
     stability = client.get("/api/stability", params={
@@ -104,7 +115,6 @@ def test_full_inspection_lifecycle_enforces_roles_and_immutable_records(db, clie
     assert stability.json()["characteristic"]["nominal"] == 20.0
     assert stability.json()["points"] == [{
         "inspection_id": inspection_id,
-        "serial": "SERIAL-001",
         "completed_at": completed.json()["completed_at"],
         "actual": 10.5,
         "deviation": pytest.approx(0.5),

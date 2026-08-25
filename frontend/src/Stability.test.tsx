@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import Stability from "./Stability";
+import type { StabilityAnalysis } from "./api/client";
 
 const api = vi.hoisted(() => ({
   catalog: { list: vi.fn(), characteristics: vi.fn() },
@@ -16,15 +17,15 @@ vi.mock("recharts", () => ({
 }));
 
 const parts = [
-  { id: 7, code: "PT-100", image_path: null, active: true },
-  { id: 9, code: "PT-200", image_path: null, active: true },
+  { id: 7, part_number: "PT-100", part_description: "Pieza 100", image_path: null, revision_no: 1, active: true },
+  { id: 9, part_number: "PT-200", part_description: "Pieza 200", image_path: null, revision_no: 1, active: true },
 ];
-const diameter = { id: 8, part_type_id: 7, code: "D1", name: "Diámetro", unit: "mm", tol_type: "SYMMETRIC", nominal: 10, tol_plus: .2, min_limit: null, max_limit: null, sort_order: 0 };
-const response = {
-  characteristic: { code: "D1", name: "Diámetro", unit: "mm", nominal: 10, lower_limit: 9.8, upper_limit: 10.2 },
+const diameter = { id: 8, part_type_id: 7, control_plan: "D1", name: "Diámetro", unit: "mm", measurement_method: "Micrómetro", tol_type: "SYMMETRIC", nominal: 10, tol_plus: .2, tol_minus: .2, min_limit: 9.8, max_limit: 10.2, sort_order: 0 };
+const response: StabilityAnalysis = {
+  characteristic: { control_plan: "D1", name: "Diámetro", unit: "mm", nominal: 10, lower_limit: 9.8, upper_limit: 10.2 },
   points: [
-    { inspection_id: 20, serial: "SER-1", completed_at: "2026-01-01T10:00:00Z", actual: 9.9, deviation: -.1, status: "IN_TOLERANCE" },
-    { inspection_id: 21, serial: "SER-2", completed_at: "2026-01-02T10:00:00Z", actual: 10.4, deviation: null, status: "PENDING" },
+    { inspection_id: 20, completed_at: "2026-01-01T10:00:00Z", actual: 9.9, deviation: -.1, status: "IN_TOLERANCE" },
+    { inspection_id: 21, completed_at: "2026-01-02T10:00:00Z", actual: 10.4, deviation: null, status: "PENDING" },
   ],
 };
 
@@ -48,8 +49,9 @@ it("loads one scoped characteristic and renders server reference lines plus the 
   expect(chart).toHaveTextContent("Límite inferior: 9.8");
   expect(chart).toHaveTextContent("Límite superior: 10.2");
   const rows = within(screen.getByRole("table", { name: "Mediciones cronológicas" })).getAllByRole("row");
-  expect(rows[1]).toHaveTextContent("SER-1");
-  expect(rows[2]).toHaveTextContent("SER-2");
+  expect(rows[1]).toHaveTextContent("20");
+  expect(rows[2]).toHaveTextContent("21");
+  expect(screen.queryByText(/serie/i)).not.toBeInTheDocument();
   expect(rows[2]).toHaveTextContent("—");
 });
 

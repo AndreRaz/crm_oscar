@@ -1,10 +1,11 @@
 """Deviation disposition service: pending queue, accept/reject, audit (design ADR-5)."""
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Inspection, Measurement, PartType, Piece, User, utcnow
-from app.schemas import MeasurementOut, QueueInspectionOut
-from app.services.status import InspectionStatus, MeasurementStatus, worst_of
+from app.models import Deviation, Inspection, Measurement, PartType, Piece, User, utcnow
+from app.schemas import DeviationOut, MeasurementOut, QueueInspectionOut
+from app.services.status import MeasurementStatus, worst_of
 
 
 class DispositionError(Exception):
@@ -21,54 +22,106 @@ def _recompute_status(db: Session, inspection: Inspection) -> None:
         Measurement.inspection_id == inspection.id)).all())
 
 
+def create_manual_deviation(db: Session, inspection_id: int,
+                            measurement_id: int, description: str,
+                            user: User) -> Deviation:
+    """Attach a pending MANUAL deviation without changing dimensional status."""
+    description = description.strip()
+    if not description:
+        raise DispositionError(422, "Manual deviation description is required")
+    measurement = db.get(Measurement, measurement_id)
+    if measurement is None:
+        raise DispositionError(404, "Measurement not found")
+    if measurement.inspection_id != inspection_id:
+        raise DispositionError(409, "Measurement does not belong to inspection")
+    existing = db.scalar(select(Deviation).where(
+        Deviation.measurement_id == measurement_id,
+        Deviation.origin == "MANUAL",
+        Deviation.status == "PENDING",
+    ))
+    if existing is not None:
+        raise DispositionError(409, "Pending manual deviation already exists")
+
+    deviation = Deviation(
+        measurement_id=measurement_id,
+        origin="MANUAL",
+        status="PENDING",
+        description=description,
+        created_by=user.id,
+    )
+    db.add(deviation)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise DispositionError(
+            409, "Pending manual deviation already exists",
+        ) from exc
+    db.refresh(deviation)
+    return deviation
+
+
 def pending_queue(db: Session) -> list[dict]:
-    """Group PENDING deviations by completed, non-annulled inspection, newest first."""
-    inspections = db.scalars(
-        select(Inspection).where(
-            Inspection.status == InspectionStatus.PENDING,
-            Inspection.completed_at.is_not(None),
+    """Group all pending AUTO and MANUAL deviations by inspection."""
+    inspections = db.scalars(select(Inspection).join(
+        Measurement, Measurement.inspection_id == Inspection.id,
+    ).join(
+        Deviation, Deviation.measurement_id == Measurement.id,
+    ).where(
+        Deviation.status == "PENDING",
+        or_(
             Inspection.annulled_at.is_(None),
-        ).order_by(Inspection.completed_at.desc(), Inspection.id.desc())
-    ).all()
+            Deviation.origin == "MANUAL",
+        ),
+    ).distinct().order_by(
+        Inspection.completed_at.desc(), Inspection.started_at.desc(),
+        Inspection.id.desc(),
+    )).all()
     groups = []
     for inspection in inspections:
         piece = db.get(Piece, inspection.piece_id)
         part_type = db.get(PartType, piece.part_type_id)
-        measurements = db.scalars(select(Measurement).where(
+        deviation_filters = [
             Measurement.inspection_id == inspection.id,
-            Measurement.status == MeasurementStatus.PENDING,
-        ).order_by(Measurement.id)).all()
+            Deviation.status == "PENDING",
+        ]
+        if inspection.annulled_at is not None:
+            deviation_filters.append(Deviation.origin == "MANUAL")
+        deviations = db.scalars(select(Deviation).join(
+            Measurement, Measurement.id == Deviation.measurement_id,
+        ).where(*deviation_filters).order_by(Deviation.id)).all()
+        measurement_ids = list(dict.fromkeys(
+            deviation.measurement_id for deviation in deviations
+        ))
+        measurements = [db.get(Measurement, item) for item in measurement_ids]
         groups.append({
             "inspection": QueueInspectionOut(
-                id=inspection.id, part_type_code=part_type.code,
-                serial=piece.serial,
+                id=inspection.id, part_number=part_type.part_number,
                 inspector=db.get(User, inspection.inspector_id).username,
-                completed_at=inspection.completed_at, status=inspection.status),
+                completed_at=inspection.completed_at,
+                annulled_at=inspection.annulled_at,
+                status=inspection.status),
+            "deviations": [DeviationOut.model_validate(d) for d in deviations],
             "measurements": [MeasurementOut.model_validate(m) for m in measurements],
         })
     return groups
 
 
-def dispose_measurement(db: Session, measurement: Measurement, action: str,
-                        text: str, user: User) -> Measurement:
-    """Apply an admin disposition and re-derive the inspection worst-of status (ADR-5)."""
-    if not text.strip():
-        raise DispositionError(422, "Disposition note or reason is required")
-    if measurement.status != MeasurementStatus.PENDING:
-        raise DispositionError(409, "Measurement is no longer pending")
-    inspection = db.get(Inspection, measurement.inspection_id)
-    if inspection.annulled_at is not None:
-        raise DispositionError(409, "Annulled inspection is immutable")
-    measurement.status = (
-        MeasurementStatus.DEVIATION_ACCEPTED if action == "accept"
-        else MeasurementStatus.REJECTED)
-    measurement.disposition_by = user.id
-    measurement.disposition_at = utcnow()
-    measurement.disposition_note = text.strip()
-    _recompute_status(db, inspection)
-    db.commit()
-    db.refresh(measurement)
-    return measurement
+def resolve_deviation(
+        db: Session, deviation: Deviation, action: str, user: User,
+        approved_deviation_id: int | None = None,
+        rejection_reason: str | None = None) -> Deviation:
+    """Delegate every resolution path to the catalog-aware transaction service."""
+    from app.services import deviation_catalog
+
+    try:
+        return deviation_catalog.resolve_deviation(
+            db, deviation, action, user,
+            approved_deviation_id=approved_deviation_id,
+            rejection_reason=rejection_reason,
+        )
+    except deviation_catalog.DeviationCatalogError as exc:
+        raise DispositionError(exc.status_code, exc.detail) from exc
 
 
 def annul_inspection(db: Session, inspection: Inspection, reason: str,
