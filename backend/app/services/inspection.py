@@ -1,6 +1,9 @@
 """Inspection execution service: start, record, complete (design ADR-4/5/8)."""
 from math import isfinite
-from sqlalchemy import select
+from sqlite3 import SQLITE_BUSY, SQLITE_LOCKED
+
+from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -65,17 +68,48 @@ def start_inspection(db: Session, part_type_id: int,
     return inspection
 
 
+def _reserve_recording_write(db: Session, inspection: Inspection) -> None:
+    """Reserve SQLite's writer before reading the evaluation basis.
+
+    Legacy sqlite3 SELECTs do not begin a database transaction. This
+    value-preserving DML starts one and excludes other writers until the
+    measurement/deviation commit (or request rollback), without changing
+    inspection evidence. Refresh afterward to discard pre-lock ORM state.
+    """
+    try:
+        db.execute(update(Inspection.__table__).where(
+            Inspection.id == inspection.id).values(id=Inspection.id))
+    except OperationalError as exc:
+        code = getattr(exc.orig, "sqlite_errorcode", 0)
+        if code & 0xFF not in (SQLITE_BUSY, SQLITE_LOCKED):
+            raise
+        db.rollback()
+        raise InspectionError(
+            409, "Another database write is in progress. Retry the measurement.",
+        ) from exc
+    db.refresh(inspection)
+
+
 def record_measurement(db: Session, inspection: Inspection,
                        characteristic_id: int, actual: float) -> Measurement:
     if not isfinite(actual):
         raise InspectionError(422, "Measurement must be finite")
-    if inspection.completed_at is not None:
+    _reserve_recording_write(db, inspection)
+    if inspection.completed_at is not None or inspection.annulled_at is not None:
         raise InspectionError(409, "Inspection is locked")
     if characteristic_id not in map(int, inspection.selected_characteristic_ids.split(",")):
         raise InspectionError(422, "Characteristic was not selected for this inspection")
     piece = db.get(Piece, inspection.piece_id)
-    c = db.get(Characteristic, characteristic_id)
-    if c is None or c.part_type_id != piece.part_type_id:
+    part_type = db.get(PartType, piece.part_type_id, populate_existing=True)
+    if part_type is None:
+        raise InspectionError(409, "Inspected part type is unavailable")
+    if current_part_revision(db, part_type).id != inspection.part_revision_id:
+        raise InspectionError(
+            409, "Part revision changed since inspection start. "
+            "Start a new inspection; saved measurements are preserved.",
+        )
+    c = db.get(Characteristic, characteristic_id, populate_existing=True)
+    if c is None or not c.active or c.part_type_id != piece.part_type_id:
         raise InspectionError(422, "Characteristic does not belong to the inspected part type")
     if db.scalar(select(Measurement).where(
             Measurement.inspection_id == inspection.id,
