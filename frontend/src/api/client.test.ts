@@ -90,4 +90,32 @@ describe("API client", () => {
       expect.objectContaining({ credentials: "include" }),
     );
   });
+
+  it("opts into persisted deviation history without changing the default pending queue", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ groups: [] }))));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.deviations.list();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations", expect.objectContaining({ credentials: "include" }));
+    await api.deviations.list(false);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations", expect.objectContaining({ credentials: "include" }));
+    await expect(api.deviations.list(true)).resolves.toEqual({ groups: [] });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/deviations?include_resolved=true", expect.objectContaining({ credentials: "include" }));
+  });
+
+  it("lists immutable revisions and posts an admin restore without rewriting the snapshot", async () => {
+    const revision = { id: 42, part_type_id: 7, revision_no: 4, definition_json: '{"part_number":"PT-100"}', created_by: 1, created_at: "2026-09-01T10:00:00Z" };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([revision])))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...revision, id: 43, revision_no: 5 })));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.catalog.revisions(7)).resolves.toEqual([revision]);
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types/7/revisions", expect.objectContaining({ credentials: "include" }));
+    await expect(api.catalog.restoreRevision(7, 4)).resolves.toEqual({ ...revision, id: 43, revision_no: 5 });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/part-types/7/revisions/4/restore", expect.objectContaining({ credentials: "include", method: "POST", body: undefined }));
+  });
+
+  it("surfaces a denied revision restore", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 })));
+    await expect(api.catalog.restoreRevision(7, 1)).rejects.toThrow("Forbidden");
+  });
 });

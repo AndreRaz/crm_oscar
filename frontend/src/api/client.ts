@@ -13,6 +13,16 @@ export type CharacteristicInput = {
 };
 export type Balloon = { id: number; part_type_id: number; characteristic_id: number; x: number; y: number };
 export type BalloonInput = Omit<Balloon, "id" | "part_type_id">;
+export type PartRevision = {
+  id: number; part_type_id: number; revision_no: number; definition_json: string;
+  created_by: number | null; created_at: string;
+};
+export type RevisionCharacteristic = Omit<Characteristic, "part_type_id"> & {
+  active: boolean; balloon: { x: number; y: number } | null;
+};
+export type PartDefinition = Pick<PartType, "part_number" | "part_description" | "image_path" | "active"> & {
+  characteristics: RevisionCharacteristic[];
+};
 export type Measurement = {
   id: number; characteristic_id: number; actual_value: number; status: "IN_TOLERANCE" | "PENDING" | "DEVIATION_ACCEPTED" | "REJECTED";
   nominal_snapshot?: number | null; min_limit_snapshot?: number | null; max_limit_snapshot?: number | null;
@@ -87,6 +97,8 @@ export const api = {
   },
   catalog: {
     list: () => request<PartType[]>("/api/part-types"),
+    revisions: (id: number) => request<PartRevision[]>(`/api/part-types/${id}/revisions`),
+    restoreRevision: (id: number, revisionNo: number) => request<PartRevision>(`/api/part-types/${id}/revisions/${revisionNo}/restore`, json("POST")),
     createPart: (input: Pick<PartType, "part_number" | "part_description">) => request<PartType>("/api/part-types", json("POST", input)),
     patchPart: (id: number, input: Partial<Pick<PartType, "part_number" | "part_description" | "active">>) => request<PartType>(`/api/part-types/${id}`, json("PATCH", input)),
     uploadImage: (id: number, file: File) => { const body = new FormData(); body.append("file", file); return request<PartType>(`/api/part-types/${id}/image`, { method: "POST", body }); },
@@ -112,7 +124,7 @@ export const api = {
     listActive: () => request<ApprovedDeviation[]>("/api/approved-deviations?active_only=true"),
   },
   deviations: {
-    list: () => request<{ groups: DeviationGroup[] }>("/api/deviations"),
+    list: (includeResolved = false) => request<{ groups: DeviationGroup[] }>(`/api/deviations${includeResolved ? "?include_resolved=true" : ""}`),
     resolve: (id: number, input: DeviationResolutionInput) => request<Deviation>(`/api/deviations/${id}/resolution`, json("POST", input)),
   },
   reports: {
