@@ -92,6 +92,21 @@ label > input, label > select, label > textarea { color: var(--ink); font-weight
 
 [role="alert"] { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, white); border-radius: var(--radius-s); padding: .55rem .8rem; margin-block: .5rem; }
 
+/* Form cards: header + body + right-aligned action footer */
+.form-card { padding: 0; overflow: hidden; }
+.form-card-header { display: flex; align-items: center; gap: .75rem; padding: .9rem 1.25rem; border-bottom: 1px solid var(--line); }
+.form-card-header strong { font-size: 1.05rem; }
+.form-card-body { padding: 1.1rem 1.25rem; display: grid; gap: .9rem; }
+.form-card-footer { display: flex; justify-content: flex-end; gap: .6rem; padding: .8rem 1.25rem; border-top: 1px solid var(--line); background: var(--surface-2); }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem 1rem; }
+.field-grid-narrow { grid-template-columns: repeat(auto-fit, minmax(6rem, 11rem)); }
+.field-narrow { justify-self: start; }
+.field-narrow input, .field-narrow select { min-width: 14rem; }
+.field-section { margin: 0; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.field-section:not(:first-child) { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: .25rem; }
+.field-hint { margin: 0; color: var(--ink-soft); }
+.push-right { margin-left: auto; }
+
 /* Catalog */
 .catalog-detail { display: grid; gap: 1rem; }
 .catalog-filter { max-width: 18rem; margin-bottom: 1rem; }
