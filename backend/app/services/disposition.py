@@ -61,14 +61,15 @@ def create_manual_deviation(db: Session, inspection_id: int,
     return deviation
 
 
-def pending_queue(db: Session) -> list[dict]:
-    """Group all pending AUTO and MANUAL deviations by inspection."""
+def pending_queue(db: Session, include_resolved: bool = False) -> list[dict]:
+    """Group deviations, optionally including persisted resolution history."""
+    status_filters = [] if include_resolved else [Deviation.status == "PENDING"]
     inspections = db.scalars(select(Inspection).join(
         Measurement, Measurement.inspection_id == Inspection.id,
     ).join(
         Deviation, Deviation.measurement_id == Measurement.id,
     ).where(
-        Deviation.status == "PENDING",
+        *status_filters,
         or_(
             Inspection.annulled_at.is_(None),
             Deviation.origin == "MANUAL",
@@ -83,7 +84,7 @@ def pending_queue(db: Session) -> list[dict]:
         part_type = db.get(PartType, piece.part_type_id)
         deviation_filters = [
             Measurement.inspection_id == inspection.id,
-            Deviation.status == "PENDING",
+            *status_filters,
         ]
         if inspection.annulled_at is not None:
             deviation_filters.append(Deviation.origin == "MANUAL")

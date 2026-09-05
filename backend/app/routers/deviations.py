@@ -15,9 +15,12 @@ router = APIRouter(prefix="/api", tags=["deviations"])
 
 
 @router.get("/deviations", response_model=DeviationsOut)
-def queue(db: Session = Depends(get_db),
+def queue(include_resolved: bool = False,
+          db: Session = Depends(get_db),
           _: User = Depends(get_current_user)):
-    return DeviationsOut(groups=service.pending_queue(db))
+    return DeviationsOut(groups=service.pending_queue(
+        db, include_resolved=include_resolved,
+    ))
 
 
 @router.post("/deviations/{deviation_id}/resolution", response_model=DeviationOut)
